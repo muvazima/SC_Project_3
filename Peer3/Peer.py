@@ -50,8 +50,13 @@ class PeerOperations(threading.Thread):
        xorKey = 'P';  
   
     # perform XOR operation of key with every character in string 
+       
        for i in range(len(data)):
-           data = data[:i] + chr(ord(data[i]) ^ ord(xorKey)) +data[i + 1:]
+            try:
+                data = data[:i] + chr(ord(data[i]) ^ ord(xorKey)) +data[i + 1:]
+            except:
+                continue
+           
     #print "Encrypted message = ",data
        return data
 
@@ -93,7 +98,8 @@ class PeerOperations(threading.Thread):
             data = f.read()
             data =self.secure(data)
             f.close()
-            conn.sendall(data.encode('utf-8'))
+            #conn.sendall(data.encode('utf-8'))
+            conn.sendall(data)
             conn.close()
         except Exception as e:
             print ("File Upload Error, %s" % e)
@@ -362,6 +368,7 @@ class Peer():
         @param peer_request_id:    Peer ID to be downloaded.
         """
         try:
+            print(peer_request_id)
             peer_request_addr, peer_request_port = peer_request_id.split(':')
             peer_request_socket = \
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -374,10 +381,11 @@ class Peer():
                 'command' : 'obtain_active',
                 'file_name' : file_name
             }
-
+    
             peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
             rcv_data = peer_request_socket.recv(1024000)
-            rcv_data=rcv_data.decode('utf-8')
+            rcv_data=rcv_data
+            print(rcv_data)
             f = open(SHARED_DIR+'/'+file_name, 'wb')
             rcv_data=self.secure(rcv_data)
             f.write(rcv_data)
@@ -392,8 +400,12 @@ class Peer():
         xorKey = 'P';  
   
     # perform XOR operation of key with every character in string 
+
         for i in range(len(data)):
+            try:
               data = data[:i] + chr(ord(data[i]) ^ ord(xorKey)) +data[i + 1:]
+            except:
+              continue
     #print "Encrypted message = ",data
         return data
 
