@@ -7,12 +7,13 @@ import json
 import os
 import argparse
 import sys
+import random
 sys.path.append('..')
 from multiprocessing import Queue
 from concurrent import futures
 #socket.gethostbyname('localhost')
 
-SHARED_DIR = "./Active-Files"
+#SHARED_DIR = "./Active-Files"
 
 
 def get_args():
@@ -93,11 +94,11 @@ class PeerOperations(threading.Thread):
         @param data_received:     Received data containing file name.
         """
         try:
-            f = open(SHARED_DIR+'/'+data_received['file_name'], 'rb')
+            #f = open(SHARED_DIR+'/'+data_received['file_name'], 'rb')
             print ("Hosting File: %s for download" % data_received)
-            data = f.read()
-            data =self.secure(data)
-            f.close()
+            #data = f.read()
+            data =self.secure(data_received)
+            #f.close()
             #conn.sendall(data.encode('utf-8'))
             conn.sendall(data)
             conn.close()
@@ -107,7 +108,6 @@ class PeerOperations(threading.Thread):
     def peer_server_host(self):
         """
         This method is used process client download request and file
-   
         """
         try:
             while True:
@@ -148,73 +148,73 @@ class PeerOperations(threading.Thread):
             print ("Peer Server Error, %s" % e)
             sys.exit(1)
 
-    def peer_file_handler(self):
-        """
-        Peer file handler is deamon thread handling file update and 
-        file removal updater to Index Server.
-        """
-        try:
-            while True:
-                file_monitor_list = []
-                for filename in os.listdir(SHARED_DIR):
-                    file_monitor_list.append(filename)
-                diff_list_add = list(
-                    set(file_monitor_list) - set(self.peer.file_list))
-                diff_list_rm = list(
-                    set(self.peer.file_list) - set(file_monitor_list))
-                if len(diff_list_add) > 0:
-                    peer_to_server_socket = \
-                        socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    peer_to_server_socket.setsockopt(
-                        socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    peer_to_server_socket.connect(
-                        (self.peer.peer_hostname, self.peer.server_port))
+    # def peer_file_handler(self):
+    #     """
+    #     Peer file handler is deamon thread handling file update and 
+    #     file removal updater to Index Server.
+    #     """
+    #     try:
+    #         while True:
+    #             file_monitor_list = []
+    #             for filename in os.listdir(SHARED_DIR):
+    #                 file_monitor_list.append(filename)
+    #             diff_list_add = list(
+    #                 set(file_monitor_list) - set(self.peer.file_list))
+    #             diff_list_rm = list(
+    #                 set(self.peer.file_list) - set(file_monitor_list))
+    #             if len(diff_list_add) > 0:
+    #                 peer_to_server_socket = \
+    #                     socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #                 peer_to_server_socket.setsockopt(
+    #                     socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #                 peer_to_server_socket.connect(
+    #                     (self.peer.peer_hostname, self.peer.server_port))
 
-                    cmd_issue = {
-                        'command' : 'update',
-                        'task' : 'add',
-                        'peer_id' : self.peer.peer_id,
-                        'files' : diff_list_add,
-                    }
-                    peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-                    rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-                    #rcv_data=rcv_data.decode('utf-8')
-                    peer_to_server_socket.close()
-                    if rcv_data:
-                        print ("File Update of Peer: %s on server successful" \
-                          % (self.peer.peer_id))
-                    else:
-                        print ("File Update of Peer: %s on server unsuccessful" \
-                          % (self.peer.peer_id))
-                if len(diff_list_rm) > 0:
-                    peer_to_server_socket = \
-                        socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    peer_to_server_socket.setsockopt(
-                        socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    peer_to_server_socket.connect(
-                        (self.peer.peer_hostname, self.peer.server_port))
+    #                 cmd_issue = {
+    #                     'command' : 'update',
+    #                     'task' : 'add',
+    #                     'peer_id' : self.peer.peer_id,
+    #                     'files' : diff_list_add,
+    #                 }
+    #                 peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+    #                 rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+    #                 #rcv_data=rcv_data.decode('utf-8')
+    #                 peer_to_server_socket.close()
+    #                 if rcv_data:
+    #                     print ("File Update of Peer: %s on server successful" \
+    #                       % (self.peer.peer_id))
+    #                 else:
+    #                     print ("File Update of Peer: %s on server unsuccessful" \
+    #                       % (self.peer.peer_id))
+    #             if len(diff_list_rm) > 0:
+    #                 peer_to_server_socket = \
+    #                     socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #                 peer_to_server_socket.setsockopt(
+    #                     socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #                 peer_to_server_socket.connect(
+    #                     (self.peer.peer_hostname, self.peer.server_port))
 
-                    cmd_issue = {
-                        'command' : 'update',
-                        'task' : 'rm',
-                        'peer_id' : self.peer.peer_id,
-                        'files' : diff_list_rm,
-                    }
-                    peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-                    rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-                    #rcv_data=rcv_data.decode('utf-8')
-                    peer_to_server_socket.close()
-                    if rcv_data:
-                        print ("File Update of Peer: %s on server successful" \
-                          % (self.peer.peer_id))
-                    else:
-                        print ("File Update of Peer: %s on server unsuccessful" \
-                          % (self.peer.peer_id))
-                self.peer.file_list = file_monitor_list
-                time.sleep(10)
-        except Exception as e:
-            print ("File Handler Error, %s" % e)
-            sys.exit(1)
+    #                 cmd_issue = {
+    #                     'command' : 'update',
+    #                     'task' : 'rm',
+    #                     'peer_id' : self.peer.peer_id,
+    #                     'files' : diff_list_rm,
+    #                 }
+    #                 peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+    #                 rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+    #                 #rcv_data=rcv_data.decode('utf-8')
+    #                 peer_to_server_socket.close()
+    #                 if rcv_data:
+    #                     print ("File Update of Peer: %s on server successful" \
+    #                       % (self.peer.peer_id))
+    #                 else:
+    #                     print ("File Update of Peer: %s on server unsuccessful" \
+    #                       % (self.peer.peer_id))
+    #             self.peer.file_list = file_monitor_list
+    #             time.sleep(10)
+    #     except Exception as e:
+    #         print ("File Handler Error, %s" % e)
+    #         sys.exit(1)
 
     def run(self):
         """
@@ -232,17 +232,25 @@ class Peer():
         """
         self.peer_hostname = socket.gethostbyname('localhost')
         self.server_port = server_port
-        self.file_list = []
+        self.data = {}
+    
+    def generate_sensor_data(self):
+        self.data['battery']= random.uniform(0, 100)
+        self.data['proximity']=random.randint(0,100)
+        self.data['location']=random.randint(0,100)
+        self.data['speed']=random.randint(0,160)
+        self.data['obstacle']=random.randint(0,100)
+        self.data['fuel']=random.uniform(0,100)
 
-    def get_file_list(self):
+
+    def get_data(self):
         """
         Obtain file list in shared dir.
         """
         try:
-            for filename in os.listdir(SHARED_DIR):
-                self.file_list.append(filename)
+            self.generate_sensor_data()
         except Exception as e:
-            print ("Error: retriving file list, %s" % e)
+            print ("Error: retriving data %s" % e)
 
     def get_free_socket(self):
         """
@@ -267,7 +275,7 @@ class Peer():
         Registering peer with Central Index Server.
         """
         #try:
-        self.get_file_list()
+        self.get_data()
         free_socket = self.get_free_socket()
         print ("Registring Peer with Server...")
 
@@ -281,7 +289,7 @@ class Peer():
         cmd_issue = {
                 'command' : 'register',
                 'peer_port' : free_socket,
-                'files' : self.file_list,
+                'data' : self.data,
             }
         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
@@ -301,99 +309,99 @@ class Peer():
         #print ("Registering Peer Error, %s" % e)
         #sys.exit(1)
 
-    def list_files_index_server(self):
-        """
-        Obtain files present in Index Server.
-        """
-        try:
-            peer_to_server_socket = \
-                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_to_server_socket.setsockopt(
-                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_to_server_socket.connect(
-                (self.peer_hostname, self.server_port))
+    # def list_files_index_server(self):
+    #     """
+    #     Obtain files present in Index Server.
+    #     """
+    #     try:
+    #         peer_to_server_socket = \
+    #             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #         peer_to_server_socket.setsockopt(
+    #             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #         peer_to_server_socket.connect(
+    #             (self.peer_hostname, self.server_port))
 
-            cmd_issue = {
-                'command' : 'list'
-            }
-            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-            rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-            #rcv_data=rcv_data.decode('utf-8')
-            peer_to_server_socket.close()
-            print ("File List in Index Server:")
-            for f in rcv_data:
-                print (f)
-        except Exception as e:
-            print ("Listing Files from Index Server Error, %s" % e)
+    #         cmd_issue = {
+    #             'command' : 'list'
+    #         }
+    #         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+    #         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+    #         #rcv_data=rcv_data.decode('utf-8')
+    #         peer_to_server_socket.close()
+    #         print ("File List in Index Server:")
+    #         for f in rcv_data:
+    #             print (f)
+    #     except Exception as e:
+    #         print ("Listing Files from Index Server Error, %s" % e)
 
-    def search_file(self, file_name):
-        """
-        Search for a file in Index Server.
+    # def search_file(self, file_name):
+    #     """
+    #     Search for a file in Index Server.
 
-        @param file_name:      File name to be searched.
-        """
-        try:
-            peer_to_server_socket = \
-                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_to_server_socket.setsockopt(
-                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_to_server_socket.connect(
-                (self.peer_hostname, self.server_port))
+    #     @param file_name:      File name to be searched.
+    #     """
+    #     try:
+    #         peer_to_server_socket = \
+    #             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #         peer_to_server_socket.setsockopt(
+    #             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #         peer_to_server_socket.connect(
+    #             (self.peer_hostname, self.server_port))
 
-            cmd_issue = {
-                'command' : 'search',
-                'file_name' : file_name
-            }
-            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-            rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-            #rcv_data=rcv_data.decode('utf-8')
-            if len(rcv_data) == 0:
-                print ("File Not Found")
-            else:
-                print ("\nFile Present in below following Peers:")
-                for peer in rcv_data:
-                    if peer == self.peer_id:
-                        print ("File Present Locally, Peer ID: %s" % peer)
-                    else:
-                        print ("Peer ID: %s" % peer)
-            peer_to_server_socket.close()
-        except Exception as e:
-            print ("Search File Error, %s" % e)
+    #         cmd_issue = {
+    #             'command' : 'search',
+    #             'file_name' : file_name
+    #         }
+    #         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+    #         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+    #         #rcv_data=rcv_data.decode('utf-8')
+    #         if len(rcv_data) == 0:
+    #             print ("File Not Found")
+    #         else:
+    #             print ("\nFile Present in below following Peers:")
+    #             for peer in rcv_data:
+    #                 if peer == self.peer_id:
+    #                     print ("File Present Locally, Peer ID: %s" % peer)
+    #                 else:
+    #                     print ("Peer ID: %s" % peer)
+    #         peer_to_server_socket.close()
+    #     except Exception as e:
+    #         print ("Search File Error, %s" % e)
 
-    def obtain(self, file_name, peer_request_id):
-        """
-        Download file from another peer.
+    # def obtain(self, file_name, peer_request_id):
+    #     """
+    #     Download file from another peer.
 
-        @param file_name:          File name to be downloaded.
-        @param peer_request_id:    Peer ID to be downloaded.
-        """
-        try:
-            print(peer_request_id)
-            peer_request_addr, peer_request_port = peer_request_id.split(':')
-            peer_request_socket = \
-                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_request_socket.setsockopt(
-                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_request_socket.connect(
-                (socket.gethostbyname('localhost'), int(peer_request_port)))
+    #     @param file_name:          File name to be downloaded.
+    #     @param peer_request_id:    Peer ID to be downloaded.
+    #     """
+    #     try:
+    #         print(peer_request_id)
+    #         peer_request_addr, peer_request_port = peer_request_id.split(':')
+    #         peer_request_socket = \
+    #             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #         peer_request_socket.setsockopt(
+    #             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #         peer_request_socket.connect(
+    #             (socket.gethostbyname('localhost'), int(peer_request_port)))
 
-            cmd_issue = {
-                'command' : 'obtain_active',
-                'file_name' : file_name
-            }
+    #         cmd_issue = {
+    #             'command' : 'obtain_active',
+    #             'file_name' : file_name
+    #         }
     
-            peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-            rcv_data = peer_request_socket.recv(1024000)
-            rcv_data=rcv_data
-            print(rcv_data)
-            f = open(SHARED_DIR+'/'+file_name, 'wb')
-            rcv_data=self.secure(rcv_data)
-            f.write(rcv_data)
-            f.close()
-            peer_request_socket.close()
-            print ("File downloaded successfully")
-        except Exception as e:
-            print ("Obtain File Error, %s" % e)
+    #         peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+    #         rcv_data = peer_request_socket.recv(1024000)
+    #         rcv_data=rcv_data
+    #         print(rcv_data)
+    #         f = open(SHARED_DIR+'/'+file_name, 'wb')
+    #         rcv_data=self.secure(rcv_data)
+    #         f.write(rcv_data)
+    #         f.close()
+    #         peer_request_socket.close()
+    #         print ("File downloaded successfully")
+    #     except Exception as e:
+    #         print ("Obtain File Error, %s" % e)
     def secure(self, data):
 
     # Define XOR key 
@@ -426,7 +434,7 @@ class Peer():
             cmd_issue = {
                 'command' : 'deregister',
                 'peer_id' : self.peer_id,
-                'files' : self.file_list,
+                #'files' : self.file_list,
                 'hosting_port' : self.hosting_port
             }
             peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
@@ -457,45 +465,46 @@ if __name__ == '__main__':
         server_thread.setDaemon(True)
         server_thread.start()
 
-        print ("Starting File Handler Deamon Thread...")
-        file_handler_thread = PeerOperations(2, "PeerFileHandler", p)
-        file_handler_thread.setDaemon(True)
-        file_handler_thread.start()
+        # print ("Starting File Handler Deamon Thread...")
+        # file_handler_thread = PeerOperations(2, "PeerFileHandler", p)
+        # file_handler_thread.setDaemon(True)
+        # file_handler_thread.start()
 
-        while True:
-            print ("*" * 20)
-            print ("1. List all files in Index Server")
-            print ("2. Search for File")
-            print ("3. Get File from Peer")
-            print ("4. Exit")
-            print ("*" * 5)
-            print ("Enter choice : ")
-            ops = input()
+        # while True:
+        #     print ("*" * 20)
+        #     print ("1. List all files in Index Server")
+        #     print ("2. Search for File")
+        #     print ("3. Get File from Peer")
+        #     print ("4. Exit")
+        #     print ("*" * 5)
+        #     print ("Enter choice : ")
+        #     ops = input()
 
-            if int(ops) == 1:
-                p.list_files_index_server()
+        #     if int(ops) == 1:
+        #         p.list_files_index_server()
 
-            elif int(ops) == 2:
-                print ("Enter File Name: ")
-                file_name = input()
-                p.search_file(file_name)
+        #     elif int(ops) == 2:
+        #         print ("Enter File Name: ")
+        #         file_name = input()
+        #         p.search_file(file_name)
 
-            elif int(ops) == 3:
-                print ("Enter File Name: ")
-                file_name = input()
-                print ("Enter Peer ID: ")
-                peer_request_id = input()
-                p.obtain(file_name, peer_request_id)
+        #     elif int(ops) == 3:
+        #         print ("Enter File Name: ")
+        #         file_name = input()
+        #         print ("Enter Peer ID: ")
+        #         peer_request_id = input()
+        #         p.obtain(file_name, peer_request_id)
 
-            elif int(ops) == 4:
-                p.deregister_peer()
-                print ("Peer Shutting down...")
-                time.sleep(1)
-                break
+        #     elif int(ops) == 4:
+        #         p.deregister_peer()
+        #         print ("Peer Shutting down...")
+        #         time.sleep(1)
+        #         break
 
-            else:
-                print ("Invaild choice...\n")
-                continue
+        #     else:
+        #         print ("Invaild choice...\n")
+        #         continue
+
 
     except Exception as e:
         print (e)

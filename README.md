@@ -8,6 +8,4 @@ $ python3 control.py -p 3366
 
 Open a terminal for peer: 
 
-$ cd Peer1
-
 $ python3 peer.py -s 3366
