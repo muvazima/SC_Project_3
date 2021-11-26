@@ -234,6 +234,7 @@ class ServerOperations(threading.Thread):
                             if success:
                                 print ("deregistration of Peer ID: %s successful" \
                                       % (data_received['peer_id']))
+                                print(data_received['message'])
                                 conn.send(json.dumps(success).encode('utf-8'))
                             else:
                                 print ("deregistration of Peer ID: %s unsuccessful" \

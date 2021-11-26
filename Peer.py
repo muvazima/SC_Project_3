@@ -235,12 +235,12 @@ class Peer():
         self.data = {}
     
     def generate_sensor_data(self):
-        self.data['battery']= random.uniform(0, 100)
+        self.data['battery']= random.randint(0, 100)
         self.data['proximity']=random.randint(0,100)
-        self.data['location']=random.randint(0,100)
+        self.data['location']={'Lat':random.uniform(0,100),'Long':random.uniform(0,100)}
         self.data['speed']=random.randint(0,160)
         self.data['obstacle']=random.randint(0,100)
-        self.data['fuel']=random.uniform(0,100)
+        self.data['fuel']=random.randint(0,100)
 
 
     def get_data(self):
@@ -250,7 +250,38 @@ class Peer():
         try:
             self.generate_sensor_data()
         except Exception as e:
-            print ("Error: retriving data %s" % e)
+            print ("Error: retreiving data %s" % e)
+
+    def generate_data_continuously(self):
+        message=''
+        while True:
+            time.sleep(15)
+            self.generate_sensor_data()
+            self.update_server()
+            if(self.data['battery']<100 or self.data['fuel']<100):
+                message='Battery or Fuel low: Shutting off Device '+str(self.peer_id)
+                self.deregister_peer(message)
+                break
+                   
+    def update_server(self):
+        cmd_issue = {'command' : 'update','peer_id' : self.peer_hostname,'data' : self.data}
+        peer_to_server_socket = \
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_to_server_socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        peer_to_server_socket.connect((self.peer_hostname, self.server_port))
+        peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+        peer_to_server_socket.close()
+        if rcv_data:
+            print ("Data Update of Peer: %s on server successful" \
+                % (self.peer_hostname))
+        else:
+            print ("Data Update of Peer: %s on server unsuccessful" \
+                % (self.peer_hostname))
+
+
+
 
     def get_free_socket(self):
         """
@@ -417,7 +448,7 @@ class Peer():
     #print "Encrypted message = ",data
         return data
 
-    def deregister_peer(self):
+    def deregister_peer(self,message=''):
         """
         Deregister peer from Central Index Server.
         """
@@ -435,6 +466,7 @@ class Peer():
                 'command' : 'deregister',
                 'peer_id' : self.peer_id,
                 #'files' : self.file_list,
+                'message':message,
                 'hosting_port' : self.hosting_port
             }
             peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
@@ -464,6 +496,7 @@ if __name__ == '__main__':
         server_thread = PeerOperations(1, "PeerServer", p)
         server_thread.setDaemon(True)
         server_thread.start()
+        p.generate_data_continuously()
 
         # print ("Starting File Handler Deamon Thread...")
         # file_handler_thread = PeerOperations(2, "PeerFileHandler", p)
