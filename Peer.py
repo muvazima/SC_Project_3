@@ -147,74 +147,69 @@ class PeerOperations(threading.Thread):
         except Exception as e:
             print ("Peer Server Error, %s" % e)
             sys.exit(1)
+    
+    # def get_sensor_data(self):
+    #     data={}
+    #     data['battery']= random.randint(0, 100)
+    #     data['proximity']=random.randint(0,100)
+    #     data['location']={'Lat':random.uniform(0,100),'Long':random.uniform(0,100)}
+    #     data['speed']=random.randint(0,160)
+    #     data['obstacle']=random.randint(0,100)
+    #     data['fuel']=random.randint(0,100)
+    #     return data
 
-    # def peer_file_handler(self):
-    #     """
-    #     Peer file handler is deamon thread handling file update and 
-    #     file removal updater to Index Server.
-    #     """
-    #     try:
-    #         while True:
-    #             file_monitor_list = []
-    #             for filename in os.listdir(SHARED_DIR):
-    #                 file_monitor_list.append(filename)
-    #             diff_list_add = list(
-    #                 set(file_monitor_list) - set(self.peer.file_list))
-    #             diff_list_rm = list(
-    #                 set(self.peer.file_list) - set(file_monitor_list))
-    #             if len(diff_list_add) > 0:
-    #                 peer_to_server_socket = \
+    # def sensor_data_updater(self,data):
+    #     #try:
+    #     self.peer.data = data
+    #     while True:
+    #         peer_to_server_socket = \
     #                     socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #                 peer_to_server_socket.setsockopt(
+    #         peer_to_server_socket.setsockopt(
     #                     socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #                 peer_to_server_socket.connect(
+    #         peer_to_server_socket.connect(
     #                     (self.peer.peer_hostname, self.peer.server_port))
-
-    #                 cmd_issue = {
+    #         cmd_issue = {
     #                     'command' : 'update',
-    #                     'task' : 'add',
     #                     'peer_id' : self.peer.peer_id,
-    #                     'files' : diff_list_add,
+    #                     'files' : self.peer.data,
     #                 }
-    #                 peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-    #                 rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+    #         print(cmd_issue)
+    #         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+    #         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
     #                 #rcv_data=rcv_data.decode('utf-8')
-    #                 peer_to_server_socket.close()
-    #                 if rcv_data:
-    #                     print ("File Update of Peer: %s on server successful" \
+    #             #peer_to_server_socket.close()
+    #         if rcv_data:
+    #             print ("Sensor data Update of Peer: %s on server successful" \
     #                       % (self.peer.peer_id))
-    #                 else:
-    #                     print ("File Update of Peer: %s on server unsuccessful" \
+    #         else:
+    #             print ("Sensor data Update of Peer: %s on server unsuccessful" \
     #                       % (self.peer.peer_id))
-    #             if len(diff_list_rm) > 0:
-    #                 peer_to_server_socket = \
-    #                     socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #                 peer_to_server_socket.setsockopt(
-    #                     socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #                 peer_to_server_socket.connect(
-    #                     (self.peer.peer_hostname, self.peer.server_port))
+                
+    #         if(data['battery']<50 or self.data['fuel']<50):
+    #             message='Battery or Fuel low: Shutting off Device '+str(self.peer_id)
+    #             print(message)
+    #             self.peer.deregister_peer(message)
+    #             break
+    #         peer_to_server_socket.close()
+    #         time.sleep(10)
+    #     # except Exception as e:
+    #     #     print ("Sensor Data Updater Error, %s" % e)
+    #     #     sys.exit(1)
 
-    #                 cmd_issue = {
-    #                     'command' : 'update',
-    #                     'task' : 'rm',
-    #                     'peer_id' : self.peer.peer_id,
-    #                     'files' : diff_list_rm,
-    #                 }
-    #                 peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-    #                 rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-    #                 #rcv_data=rcv_data.decode('utf-8')
-    #                 peer_to_server_socket.close()
-    #                 if rcv_data:
-    #                     print ("File Update of Peer: %s on server successful" \
-    #                       % (self.peer.peer_id))
-    #                 else:
-    #                     print ("File Update of Peer: %s on server unsuccessful" \
-    #                       % (self.peer.peer_id))
-    #             self.peer.file_list = file_monitor_list
-    #             time.sleep(10)
-    #     except Exception as e:
-    #         print ("File Handler Error, %s" % e)
-    #         sys.exit(1)
+    # def generate_data_continuosly(self):
+    #     #try:
+        
+                
+    #     while True:
+    #             #time.sleep(15)
+    #         data=self.get_sensor_data()
+    #         print(data)
+    #         self.sensor_data_updater(data)
+            
+        
+    #     #except Exception as e:
+    #         #print('Generate Data Continuously Error, %s'%e)
+
 
     def run(self):
         """
@@ -222,8 +217,8 @@ class PeerOperations(threading.Thread):
         """
         if self.name == "PeerServer":
             self.peer_server()
-        elif self.name == "PeerFileHandler":
-            self.peer_file_handler()
+        elif self.name == "SensorUpdater":
+            self.generate_data_continuosly()
 
 class Peer():
     def __init__(self, server_port):
@@ -241,30 +236,34 @@ class Peer():
         self.data['speed']=random.randint(0,160)
         self.data['obstacle']=random.randint(0,100)
         self.data['fuel']=random.randint(0,100)
+        return self.data
 
 
-    def get_data(self):
-        """
-        Obtain file list in shared dir.
-        """
-        try:
-            self.generate_sensor_data()
-        except Exception as e:
-            print ("Error: retreiving data %s" % e)
+    # def get_data(self):
+    #     """
+    #     Obtain file list in shared dir.
+    #     """
+    #     try:
+    #         self.generate_sensor_data()
+    #     except Exception as e:
+    #         print ("Error: retreiving data %s" % e)
 
     def generate_data_continuously(self):
         message=''
         while True:
             time.sleep(15)
-            self.generate_sensor_data()
-            self.update_server()
-            if(self.data['battery']<100 or self.data['fuel']<100):
+            data=self.generate_sensor_data()
+            print(self.data)
+            self.update_server(data)
+            if(self.data['battery']<50 or self.data['fuel']<50):
                 message='Battery or Fuel low: Shutting off Device '+str(self.peer_id)
+                print(message)
                 self.deregister_peer(message)
                 break
                    
-    def update_server(self):
-        cmd_issue = {'command' : 'update','peer_id' : self.peer_hostname,'data' : self.data}
+    def update_server(self,data):
+        #free_socket = self.get_free_socket()
+        cmd_issue = {'command' : 'update','peer_id' : self.peer_id,'data' : data}
         peer_to_server_socket = \
             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         peer_to_server_socket.setsockopt(
@@ -272,6 +271,7 @@ class Peer():
         peer_to_server_socket.connect((self.peer_hostname, self.server_port))
         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+        print(rcv_data)
         peer_to_server_socket.close()
         if rcv_data:
             print ("Data Update of Peer: %s on server successful" \
@@ -279,8 +279,6 @@ class Peer():
         else:
             print ("Data Update of Peer: %s on server unsuccessful" \
                 % (self.peer_hostname))
-
-
 
 
     def get_free_socket(self):
@@ -306,7 +304,7 @@ class Peer():
         Registering peer with Central Index Server.
         """
         #try:
-        self.get_data()
+        data=self.generate_sensor_data()
         free_socket = self.get_free_socket()
         print ("Registring Peer with Server...")
 
@@ -498,10 +496,10 @@ if __name__ == '__main__':
         server_thread.start()
         p.generate_data_continuously()
 
-        # print ("Starting File Handler Deamon Thread...")
-        # file_handler_thread = PeerOperations(2, "PeerFileHandler", p)
-        # file_handler_thread.setDaemon(True)
-        # file_handler_thread.start()
+        # print ("Starting Sensor Updater Deamon Thread...")
+        # sensor_updater_thread = PeerOperations(2, "SensorUpdater", p)
+        # sensor_updater_thread.setDaemon(True)
+        # sensor_updater_thread.start()
 
         # while True:
         #     print ("*" * 20)
