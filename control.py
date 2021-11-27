@@ -22,6 +22,7 @@ def get_args():
                         required=True,
                         action='store',
                         help='Server Port Number')
+    parser.add_argument('-n','--network', type=str,required=False,action='store',help='IP address of network to connect to')
     args = parser.parse_args()
     return args
 
@@ -40,6 +41,7 @@ class ServerOperations(threading.Thread):
         self.hash_table_ports_peers = {}
         #self.hash_table_data = {}
         self.hash_table_peer_data = {}
+        self.leader=''
         self.listener_queue = Queue()
 
     def server_listener(self):
@@ -75,6 +77,7 @@ class ServerOperations(threading.Thread):
             self.hash_table_ports_peers[peer_port] = addr[0]
             peer_id = addr[0] + ":" + str(peer_port)
             self.hash_table_peer_data[peer_id] = data
+            self.leader=peer_id
             # for f in files:
             #     if f in self.hash_table_files:
             #         self.hash_table_files[f].append(peer_id)
@@ -102,18 +105,19 @@ class ServerOperations(threading.Thread):
             print ("Peer Sensor Data Update failure: %s" % e)
             return False
 
-    # def list_files_index_server(self):
-    #     """
-    #     This method is used display the list of files registered with 
-    #     the Central Index Server.
+    def list_peer_nodes(self):
+        """
+        This method is used display the list of files registered with 
+        the Central Index Server.
 
-    #     @return files_list:    List of files present in the server.
-    #     """
-    #     try:
-    #         files_list = self.hash_table_files.keys()
-    #         return files_list
-    #     except Exception as e:
-    #         print ("Listing Files Error, %s" % e)
+        @return files_list:    List of files present in the server.
+        """
+        #try:
+        nodes_list = self.hash_table_peer_data.keys()
+        #print(nodes_list)
+        return nodes_list
+        #except Exception as e:
+            #print ("Listing Peer Nodes Error, %s" % e)
 
     # def search(self, file_name):
     #     """
@@ -203,18 +207,19 @@ class ServerOperations(threading.Thread):
                                       % (data_received['peer_id']))
                             conn.send(json.dumps(success).encode('utf-8'))
 
-                        # elif data_received['command'] == 'list':
-                        #     fut = executor.submit(self.list_files_index_server)
-                        #     file_list = fut.result(timeout= None)
-                        #     print ("File list generated, %s" % file_list)
-                        #     conn.send(json.dumps(list(file_list)).encode('utf-8'))
+                    elif data_received['command'] == 'list':
+                        fut = executor.submit(self.list_peer_nodes)
+                        #print(self.list_peer_nodes())
+                        nodes_list = fut.result(timeout= None)
+                        print ("Node list generated, %s" % nodes_list)
+                        conn.send(json.dumps(list(nodes_list)).encode('utf-8'))
 
-                        # elif data_received['command'] == 'search':
-                        #     fut = executor.submit(self.search,
-                        #                           data_received['file_name'])
-                        #     peer_list = fut.result(timeout= None)
-                        #     print ("Peer list generated, %s" % peer_list)
-                        #     conn.send(json.dumps(peer_list).encode('utf-8'))
+                    elif data_received['command'] == 'connect':
+                        fut = executor.submit(self.connect,
+                                                  data_received['file_name'])
+                        leader_node_address = fut.result(timeout= None)
+                        print ("leader, %s" % leader_node_address)
+                        conn.send(json.dumps(leader_node_address).encode('utf-8'))
 
                     elif data_received['command'] == 'deregister':
                         fut = executor.submit(self.deregistry, data_received)
@@ -235,6 +240,8 @@ class ServerOperations(threading.Thread):
                               self.hash_table_ports_peers)
                     print ("hash table: Peer-Data || %s" % \
                               self.hash_table_peer_data)
+                    print("hash table: peer Leader: || %s" % \
+                                self.leader)
                     conn.close()
         # except Exception as e:
         #     print ("Server Operations error, %s " % e)
@@ -250,6 +257,7 @@ if __name__ == '__main__':
         print ("Starting Server Operations Thread...")
         operations_thread = ServerOperations(1, "ServerOperations",args.port) 
         operations_thread.start()
+        
     except Exception as e:
         print (e)
         sys.exit(1)

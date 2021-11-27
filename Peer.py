@@ -11,6 +11,7 @@ import random
 sys.path.append('..')
 from multiprocessing import Queue
 from concurrent import futures
+import sensor
 #socket.gethostbyname('localhost')
 
 #SHARED_DIR = "./Active-Files"
@@ -148,6 +149,7 @@ class PeerOperations(threading.Thread):
             print ("Peer Server Error, %s" % e)
             sys.exit(1)
     
+    
     # def get_sensor_data(self):
     #     data={}
     #     data['battery']= random.randint(0, 100)
@@ -230,12 +232,13 @@ class Peer():
         self.data = {}
     
     def generate_sensor_data(self):
-        self.data['battery']= random.randint(0, 100)
-        self.data['proximity']=random.randint(0,100)
-        self.data['location']={'Lat':random.uniform(0,100),'Long':random.uniform(0,100)}
-        self.data['speed']=random.randint(0,160)
-        self.data['obstacle']=random.randint(0,100)
-        self.data['fuel']=random.randint(0,100)
+        self.data['light']= sensor.Light()
+        self.data['proximity']=sensor.ProximitySensor()
+        self.data['location']=sensor.LocationSensor()
+        self.data['speed']=sensor.SpeedSensor()
+        self.data['obstacle']=sensor.Obstacle()
+        self.data['fuel']=sensor.FuelSensor()
+        self.data['lane_change']=sensor.LaneChangeSensor()
         return self.data
 
 
@@ -253,10 +256,12 @@ class Peer():
         while True:
             time.sleep(15)
             data=self.generate_sensor_data()
+
             print(self.data)
             self.update_server(data)
-            if(self.data['battery']<50 or self.data['fuel']<50):
-                message='Battery or Fuel low: Shutting off Device '+str(self.peer_id)
+            self.list_nodes()
+            if(self.data['fuel']<10):
+                message='Fuel low: Shutting off Device '+str(self.peer_id)
                 print(message)
                 self.deregister_peer(message)
                 break
@@ -338,30 +343,31 @@ class Peer():
         #print ("Registering Peer Error, %s" % e)
         #sys.exit(1)
 
-    # def list_files_index_server(self):
-    #     """
-    #     Obtain files present in Index Server.
-    #     """
-    #     try:
-    #         peer_to_server_socket = \
-    #             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         peer_to_server_socket.setsockopt(
-    #             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #         peer_to_server_socket.connect(
-    #             (self.peer_hostname, self.server_port))
+    def list_nodes(self):
+        """
+        Obtain files present in Index Server.
+        """
+        try:
+            peer_to_server_socket = \
+                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peer_to_server_socket.setsockopt(
+                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            peer_to_server_socket.connect(
+                (self.peer_hostname, self.server_port))
 
-    #         cmd_issue = {
-    #             'command' : 'list'
-    #         }
-    #         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-    #         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-    #         #rcv_data=rcv_data.decode('utf-8')
-    #         peer_to_server_socket.close()
-    #         print ("File List in Index Server:")
-    #         for f in rcv_data:
-    #             print (f)
-    #     except Exception as e:
-    #         print ("Listing Files from Index Server Error, %s" % e)
+            cmd_issue = {
+                'command' : 'list'
+            }
+            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+            rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+            #rcv_data=rcv_data.decode('utf-8')
+            peer_to_server_socket.close()
+            print ("Node List in Server:")
+            for f in rcv_data:
+                print (f)
+            return rcv_data
+        except Exception as e:
+            print ("Listing Nodes from Index Server Error, %s" % e)
 
     # def search_file(self, file_name):
     #     """
@@ -495,6 +501,7 @@ if __name__ == '__main__':
         server_thread.setDaemon(True)
         server_thread.start()
         p.generate_data_continuously()
+        
 
         # print ("Starting Sensor Updater Deamon Thread...")
         # sensor_updater_thread = PeerOperations(2, "SensorUpdater", p)
