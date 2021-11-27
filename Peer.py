@@ -87,24 +87,24 @@ class PeerOperations(threading.Thread):
             print ("Peer Server Listener on port Failed: %s" % e)
             sys.exit(1)
 
-    def peer_server_upload(self, conn, data_received):
-        """
-        This method is used to enable file transfer between peers.
+    # def peer_server_upload(self, conn, data_received):
+    #     """
+    #     This method is used to enable file transfer between peers.
 
-        @param conn:              Connection object.
-        @param data_received:     Received data containing file name.
-        """
-        try:
-            #f = open(SHARED_DIR+'/'+data_received['file_name'], 'rb')
-            print ("Hosting File: %s for download" % data_received)
-            #data = f.read()
-            data =self.secure(data_received)
-            #f.close()
-            #conn.sendall(data.encode('utf-8'))
-            conn.sendall(data)
-            conn.close()
-        except Exception as e:
-            print ("File Upload Error, %s" % e)
+    #     @param conn:              Connection object.
+    #     @param data_received:     Received data containing file name.
+    #     """
+    #     try:
+    #         #f = open(SHARED_DIR+'/'+data_received['file_name'], 'rb')
+    #         print ("Hosting File: %s for download" % data_received)
+    #         #data = f.read()
+    #         data =self.secure(data_received)
+    #         #f.close()
+    #         #conn.sendall(data.encode('utf-8'))
+    #         conn.sendall(data)
+    #         conn.close()
+    #     except Exception as e:
+    #         print ("File Upload Error, %s" % e)
 
     def peer_server_host(self):
         """
@@ -118,9 +118,12 @@ class PeerOperations(threading.Thread):
                         data_received = json.loads(conn.recv(1024).decode('utf-8'))
                         #data_received=data_received.decode('utf-8')
 
-                        if data_received['command'] == 'obtain_active':
-                            fut = executor.submit(
-                                self.peer_server_upload, conn, data_received)
+                        # if data_received['command'] == 'obtain_active':
+                        #     fut = executor.submit(
+                        #         self.peer_server_upload, conn, data_received)
+                        if data_received['command']== 'message':
+                            print("Message Recieved from: "+str(addr))
+                            print(data_received['message'])
         except Exception as e:
             print ("Peer Server Hosting Error, %s" % e)
 
@@ -150,72 +153,10 @@ class PeerOperations(threading.Thread):
             sys.exit(1)
     
     
-    # def get_sensor_data(self):
-    #     data={}
-    #     data['battery']= random.randint(0, 100)
-    #     data['proximity']=random.randint(0,100)
-    #     data['location']={'Lat':random.uniform(0,100),'Long':random.uniform(0,100)}
-    #     data['speed']=random.randint(0,160)
-    #     data['obstacle']=random.randint(0,100)
-    #     data['fuel']=random.randint(0,100)
-    #     return data
-
-    # def sensor_data_updater(self,data):
-    #     #try:
-    #     self.peer.data = data
-    #     while True:
-    #         peer_to_server_socket = \
-    #                     socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         peer_to_server_socket.setsockopt(
-    #                     socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #         peer_to_server_socket.connect(
-    #                     (self.peer.peer_hostname, self.peer.server_port))
-    #         cmd_issue = {
-    #                     'command' : 'update',
-    #                     'peer_id' : self.peer.peer_id,
-    #                     'files' : self.peer.data,
-    #                 }
-    #         print(cmd_issue)
-    #         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-    #         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-    #                 #rcv_data=rcv_data.decode('utf-8')
-    #             #peer_to_server_socket.close()
-    #         if rcv_data:
-    #             print ("Sensor data Update of Peer: %s on server successful" \
-    #                       % (self.peer.peer_id))
-    #         else:
-    #             print ("Sensor data Update of Peer: %s on server unsuccessful" \
-    #                       % (self.peer.peer_id))
-                
-    #         if(data['battery']<50 or self.data['fuel']<50):
-    #             message='Battery or Fuel low: Shutting off Device '+str(self.peer_id)
-    #             print(message)
-    #             self.peer.deregister_peer(message)
-    #             break
-    #         peer_to_server_socket.close()
-    #         time.sleep(10)
-    #     # except Exception as e:
-    #     #     print ("Sensor Data Updater Error, %s" % e)
-    #     #     sys.exit(1)
-
-    # def generate_data_continuosly(self):
-    #     #try:
-        
-                
-    #     while True:
-    #             #time.sleep(15)
-    #         data=self.get_sensor_data()
-    #         print(data)
-    #         self.sensor_data_updater(data)
-            
-        
-    #     #except Exception as e:
-    #         #print('Generate Data Continuously Error, %s'%e)
-
-
+    
     def run(self):
         """
-        Deamon thread for Peer Server and File Handler.
+        Deamon thread for Peer Server and Sensor Updater.
         """
         if self.name == "PeerServer":
             self.peer_server()
@@ -241,6 +182,31 @@ class Peer():
         self.data['lane_change']=sensor.LaneChangeSensor()
         return self.data
 
+    def broadcast_peers(self, message):
+        nodes=self.list_nodes()
+        for node in nodes:
+            if(node==self.peer_hostname+':'+self.peer_id):
+                continue
+            peer_request_addr, peer_request_port = node.split(':')
+            peer_request_socket = \
+                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peer_request_socket.setsockopt(
+                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            peer_request_socket.connect(
+                (socket.gethostbyname('localhost'), int(peer_request_port)))
+
+            cmd_issue = {
+                'command' : 'message',
+                'message':message
+            }
+    
+            peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+            rcv_data = peer_request_socket.recv(1024000)
+            print(rcv_data)
+            peer_request_socket.close()
+
+        
+
 
     # def get_data(self):
     #     """
@@ -259,12 +225,17 @@ class Peer():
 
             print(self.data)
             self.update_server(data)
-            self.list_nodes()
-            if(self.data['fuel']<10):
+            
+            if(self.data['fuel']<2):
                 message='Fuel low: Shutting off Device '+str(self.peer_id)
                 print(message)
+                self.broadcast_peers(message)
                 self.deregister_peer(message)
                 break
+            if(self.data['obstacle']<20):
+                message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
+                print(message)
+                self.broadcast_peers(message)
                    
     def update_server(self,data):
         #free_socket = self.get_free_socket()
