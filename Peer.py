@@ -70,7 +70,7 @@ class PeerOperations(threading.Thread):
                 socket.AF_INET, socket.SOCK_STREAM)
             peer_server_socket.setsockopt(
                 socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_server_host = socket.gethostbyname('localhost')
+            peer_server_host = socket.gethostbyname(socket.gethostname())
             
             peer_server_port = self.peer.hosting_port
             peer_server_socket.bind(
@@ -146,8 +146,12 @@ class Peer():
         """
         Constructor used to initialize class object.
         """
-        self.peer_hostname = socket.gethostbyname('localhost')
+        #if(':' not in server_port):
+        self.peer_hostname = socket.gethostbyname(socket.gethostname())
         self.server_port = server_port
+        #else:
+            #self.peer_hostname,self.server_port=server_port.split(':')
+        
         self.data = {}
         self.network=network
     
@@ -172,7 +176,9 @@ class Peer():
             peer_request_socket.setsockopt(
                 socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_request_socket.connect(
-                (socket.gethostbyname('localhost'), int(peer_request_port)))
+                (self.peer_hostname, int(peer_request_port)))
+                #(socket.gethostbyname('localhost'), int(peer_request_port)))
+
 
             cmd_issue = {
                 'command' : 'message',

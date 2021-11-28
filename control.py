@@ -53,7 +53,8 @@ class ServerOperations(threading.Thread):
         try:
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_host = socket.gethostbyname('localhost')
+            #server_host = socket.gethostbyname('localhost')
+            server_host = socket.gethostbyname(socket.gethostname())
             server_socket.bind((server_host, self.server_port))
             server_socket.listen(10)
             while True:
