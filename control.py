@@ -56,7 +56,7 @@ class ServerOperations(threading.Thread):
             #server_host = socket.gethostbyname('localhost')
             server_host = socket.gethostbyname(socket.gethostname())
             server_socket.bind((server_host, self.server_port))
-            server_socket.listen(10)
+            server_socket.listen(100)
             while True:
                 conn, addr = server_socket.accept()
                 self.listener_queue.put((conn,addr))

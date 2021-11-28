@@ -75,7 +75,7 @@ class PeerOperations(threading.Thread):
             peer_server_port = self.peer.hosting_port
             peer_server_socket.bind(
                 (peer_server_host, peer_server_port))
-            peer_server_socket.listen(10)
+            peer_server_socket.listen(100)
             while True:
                 conn, addr = peer_server_socket.accept()
                 #print "Got connection from %s on port %s" \
