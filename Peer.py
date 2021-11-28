@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 import socket
 import time
 import threading
@@ -13,7 +12,6 @@ from multiprocessing import Queue
 from concurrent import futures
 import sensor
 #socket.gethostbyname('localhost')
-
 #SHARED_DIR = "./Active-Files"
 
 
@@ -28,6 +26,7 @@ def get_args():
                         required=True,
                         action='store',
                         help='Index Server Port Number')
+    parser.add_argument('-n','--network', type=str,required=False,action='store',help='IP address of network to connect to')
     args = parser.parse_args()
     return args
 
@@ -121,9 +120,10 @@ class PeerOperations(threading.Thread):
                         # if data_received['command'] == 'obtain_active':
                         #     fut = executor.submit(
                         #         self.peer_server_upload, conn, data_received)
-                        if data_received['command']== 'message':
+                        if data_received['command']== 'message' or data_received['command']=='connect':
                             print("Message Recieved from: "+str(addr))
                             print(data_received['message'])
+
         except Exception as e:
             print ("Peer Server Hosting Error, %s" % e)
 
@@ -152,8 +152,6 @@ class PeerOperations(threading.Thread):
             print ("Peer Server Error, %s" % e)
             sys.exit(1)
     
-    
-    
     def run(self):
         """
         Deamon thread for Peer Server and Sensor Updater.
@@ -164,13 +162,14 @@ class PeerOperations(threading.Thread):
             self.generate_data_continuosly()
 
 class Peer():
-    def __init__(self, server_port):
+    def __init__(self, server_port, network):
         """
         Constructor used to initialize class object.
         """
         self.peer_hostname = socket.gethostbyname('localhost')
         self.server_port = server_port
         self.data = {}
+        self.network=network
     
     def generate_sensor_data(self):
         self.data['light']= sensor.Light()
@@ -197,7 +196,7 @@ class Peer():
 
             cmd_issue = {
                 'command' : 'message',
-                'message':message
+                'message': message
             }
     
             peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
@@ -205,8 +204,25 @@ class Peer():
             print(rcv_data)
             peer_request_socket.close()
 
+    def connect_network(self,addr):
         
-
+        peer_request_addr, peer_request_port = addr.split(':')
+        peer_request_socket = \
+                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_request_socket.setsockopt(
+                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        peer_request_socket.connect(
+                (socket.gethostbyname('localhost'), int(peer_request_port)))
+        message='Connection establish between Leader '+str(addr) +' and Leader '+str(self.peer_hostname+':'+self.peer_id)
+        cmd_issue = {
+                'command' : 'connect',
+                'message': message
+            }
+    
+        peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        rcv_data = peer_request_socket.recv(1024000)
+        print(rcv_data)
+        peer_request_socket.close()
 
     # def get_data(self):
     #     """
@@ -216,6 +232,7 @@ class Peer():
     #         self.generate_sensor_data()
     #     except Exception as e:
     #         print ("Error: retreiving data %s" % e)
+
 
     def generate_data_continuously(self):
         message=''
@@ -236,6 +253,9 @@ class Peer():
                 message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
                 print(message)
                 self.broadcast_peers(message)
+            if(self.network):
+                if(self.peer_hostname+':'+self.peer_id==self.get_leader()):
+                    self.connect_network(args.network)
                    
     def update_server(self,data):
         #free_socket = self.get_free_socket()
@@ -339,6 +359,29 @@ class Peer():
             return rcv_data
         except Exception as e:
             print ("Listing Nodes from Index Server Error, %s" % e)
+        
+    def get_leader(self):
+        try:
+            peer_to_server_socket = \
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peer_to_server_socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            peer_to_server_socket.connect(
+                (self.peer_hostname, self.server_port))
+
+            cmd_issue = {
+                'command' : 'leader'
+                }
+            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+            rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+            #rcv_data=rcv_data.decode('utf-8')
+            peer_to_server_socket.close()
+            print ("leader:",rcv_data)
+            
+            return rcv_data
+        except Exception as e:
+            print ("Listing leader from Index Server Error, %s" % e)
+
 
     # def search_file(self, file_name):
     #     """
@@ -464,7 +507,9 @@ if __name__ == '__main__':
     try:
         args = get_args()
         print ("Starting Peer...")
-        p = Peer(args.server)
+        print(args.network)
+        p=Peer(args.server,args.network)
+            
         p.register_peer()
 
         print ("Stating Peer Server Deamon Thread...")

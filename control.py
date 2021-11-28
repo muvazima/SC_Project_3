@@ -22,7 +22,7 @@ def get_args():
                         required=True,
                         action='store',
                         help='Server Port Number')
-    parser.add_argument('-n','--network', type=str,required=False,action='store',help='IP address of network to connect to')
+    
     args = parser.parse_args()
     return args
 
@@ -116,9 +116,11 @@ class ServerOperations(threading.Thread):
         nodes_list = self.hash_table_peer_data.keys()
         #print(nodes_list)
         return nodes_list
+
         #except Exception as e:
             #print ("Listing Peer Nodes Error, %s" % e)
-
+    def get_leader(self):
+        return self.leader
     # def search(self, file_name):
     #     """
     #     This method is used to search for a particular file.
@@ -213,6 +215,13 @@ class ServerOperations(threading.Thread):
                         nodes_list = fut.result(timeout= None)
                         print ("Node list generated, %s" % nodes_list)
                         conn.send(json.dumps(list(nodes_list)).encode('utf-8'))
+                    
+                    elif data_received['command']=='leader':
+                        fut = executor.submit(self.get_leader)
+                        #print(self.list_peer_nodes())
+                        leader = fut.result(timeout= None)
+                        print ("Leader node: , %s" % leader)
+                        conn.send(json.dumps(leader).encode('utf-8'))
 
                     elif data_received['command'] == 'connect':
                         fut = executor.submit(self.connect,
