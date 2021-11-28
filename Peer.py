@@ -14,7 +14,6 @@ import sensor
 #socket.gethostbyname('localhost')
 #SHARED_DIR = "./Active-Files"
 
-
 def get_args():
     """
     Get command line args from the user.
@@ -85,25 +84,6 @@ class PeerOperations(threading.Thread):
         except Exception as e:
             print ("Peer Server Listener on port Failed: %s" % e)
             sys.exit(1)
-
-    # def peer_server_upload(self, conn, data_received):
-    #     """
-    #     This method is used to enable file transfer between peers.
-
-    #     @param conn:              Connection object.
-    #     @param data_received:     Received data containing file name.
-    #     """
-    #     try:
-    #         #f = open(SHARED_DIR+'/'+data_received['file_name'], 'rb')
-    #         print ("Hosting File: %s for download" % data_received)
-    #         #data = f.read()
-    #         data =self.secure(data_received)
-    #         #f.close()
-    #         #conn.sendall(data.encode('utf-8'))
-    #         conn.sendall(data)
-    #         conn.close()
-    #     except Exception as e:
-    #         print ("File Upload Error, %s" % e)
 
     def peer_server_host(self):
         """
@@ -204,33 +184,66 @@ class Peer():
             rcv_data = peer_request_socket.recv(1024000)
             print(rcv_data)
             peer_request_socket.close()
+        return rcv_data
 
     def connect_network_leader(self,addr):
         hostname,port=addr.split(':')
+        #get address of leader present in network with server with addr
         leader_addr=self.get_leader(hostname,port)
         peer_request_addr, peer_request_port = leader_addr.split(':')
         peer_request_socket = \
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         peer_request_socket.setsockopt(
                 socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #connect leader of joining network with leader of existing network
         peer_request_socket.connect(
                 (peer_request_addr, int(peer_request_port)))
         message='Connection established between Leader '+str(leader_addr) +' and Leader '+str(self.peer_id)
-
         cmd_issue = {
                 'command' : 'connect',
                 'message': message,
-                'peer_id':self.peer_id
-            }
-    
+                'peer_id':self.peer_id }
         peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
         rcv_data = peer_request_socket.recv(1024000)
         print(rcv_data)
         peer_request_socket.close()
 
+        #update incoming network's server 
+        peer_request_socket = \
+                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_request_socket.setsockopt(
+                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        peer_request_socket.connect((hostname,int(port)))
+        cmd_issue = {
+                'command' : 'connect_update',
+                'peer_id':self.peer_id }
+        peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        rcv_data = peer_request_socket.recv(1024000)
+        print(rcv_data)
+        peer_request_socket.close()
+        
+        #update the current network's server
+        peer_request_socket = \
+                socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_request_socket.setsockopt(
+                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        peer_request_socket.connect((self.peer_hostname,int(self.server_port)))
+        cmd_issue = {
+                'command' : 'connect_update',
+                'peer_id':leader_addr }
+        peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        rcv_data = peer_request_socket.recv(1024000)
+        print(rcv_data)
+        peer_request_socket.close()
+
+        
+
 
     def generate_data_continuously(self):
         #try:
+        if(self.network):
+                if(self.peer_id==self.get_leader(self.peer_hostname,self.server_port)):
+                    self.connect_network_leader(self.network)
         message=''
         while True:
             time.sleep(15)
@@ -239,9 +252,6 @@ class Peer():
             print(self.data)
             self.update_server(data)
 
-            if(self.network):
-                if(self.peer_id==self.get_leader(self.peer_hostname,self.server_port)):
-                    self.connect_network_leader(self.network)
             if(self.data['fuel']<2):
                 message='Fuel low: Shutting off Device '+str(self.peer_id)
                 print(message)
@@ -251,7 +261,8 @@ class Peer():
             if(self.data['obstacle']<20):
                 message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
                 print(message)
-                self.broadcast_peers(message)
+                suc=self.broadcast_peers(message)
+                continue
               
     def update_server(self,data):
         #free_socket = self.get_free_socket()

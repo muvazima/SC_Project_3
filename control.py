@@ -231,7 +231,7 @@ class ServerOperations(threading.Thread):
                         print ("Leader node: , %s" % leader)
                         conn.send(json.dumps(leader).encode('utf-8'))
 
-                    elif data_received['command'] == 'connect':
+                    elif data_received['command'] == 'connect_update':
                         fut = executor.submit(self.connect,
                                                   data_received['peer_id'])
                         success = fut.result(timeout= None)
