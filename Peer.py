@@ -205,16 +205,18 @@ class Peer():
             print(rcv_data)
             peer_request_socket.close()
 
-    def connect_network(self,addr):
-        
-        peer_request_addr, peer_request_port = addr.split(':')
+    def connect_network_leader(self,addr):
+        hostname,port=addr.split(':')
+        leader_addr=self.get_leader(hostname,port)
+        peer_request_addr, peer_request_port = leader_addr.split(':')
         peer_request_socket = \
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         peer_request_socket.setsockopt(
                 socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         peer_request_socket.connect(
-                (socket.gethostbyname('localhost'), int(peer_request_port)))
-        message='Connection establish between Leader '+str(addr) +' and Leader '+str(self.peer_id)
+                (peer_request_addr, int(peer_request_port)))
+        message='Connection established between Leader '+str(leader_addr) +' and Leader '+str(self.peer_id)
+
         cmd_issue = {
                 'command' : 'connect',
                 'message': message,
@@ -226,46 +228,31 @@ class Peer():
         print(rcv_data)
         peer_request_socket.close()
 
-    # def get_data(self):
-    #     """
-    #     Obtain file list in shared dir.
-    #     """
-    #     try:
-    #         self.generate_sensor_data()
-    #     except Exception as e:
-    #         print ("Error: retreiving data %s" % e)
-
 
     def generate_data_continuously(self):
-        try:
-            message=''
-            while True:
-                time.sleep(15)
-                data=self.generate_sensor_data()
+        #try:
+        message=''
+        while True:
+            time.sleep(15)
+            data=self.generate_sensor_data()
 
-                print(self.data)
-                self.update_server(data)
-            
-                if(self.data['fuel']<2):
-                    message='Fuel low: Shutting off Device '+str(self.peer_id)
-                    print(message)
-                    self.broadcast_peers(message)
-                    self.deregister_peer(message)
-                    break
-                if(self.data['obstacle']<20):
-                    message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
-                    print(message)
-                    self.broadcast_peers(message)
-                if(self.network):
-                    if(self.peer_id==self.get_leader()):
-                        self.connect_network(args.network)
-        except Exception as e:
-            print('Continuous data generation error %s' %e)
-            self.deregister_peer()
-            sys.exit(1)
+            print(self.data)
+            self.update_server(data)
 
-
-                   
+            if(self.network):
+                if(self.peer_id==self.get_leader(self.peer_hostname,self.server_port)):
+                    self.connect_network_leader(self.network)
+            if(self.data['fuel']<2):
+                message='Fuel low: Shutting off Device '+str(self.peer_id)
+                print(message)
+                self.broadcast_peers(message)
+                self.deregister_peer(message)
+                break
+            if(self.data['obstacle']<20):
+                message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
+                print(message)
+                self.broadcast_peers(message)
+              
     def update_server(self,data):
         #free_socket = self.get_free_socket()
         cmd_issue = {'command' : 'update','peer_id' : self.peer_id,'data' : data}
@@ -369,14 +356,14 @@ class Peer():
         except Exception as e:
             print ("Listing Nodes from Index Server Error, %s" % e)
         
-    def get_leader(self):
+    def get_leader(self,hostname,server_port):
         try:
             peer_to_server_socket = \
             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(
             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             peer_to_server_socket.connect(
-                (self.peer_hostname, self.server_port))
+                (hostname, int(server_port)))
 
             cmd_issue = {
                 'command' : 'leader'
@@ -391,75 +378,6 @@ class Peer():
         except Exception as e:
             print ("Listing leader from Index Server Error, %s" % e)
 
-
-    # def search_file(self, file_name):
-    #     """
-    #     Search for a file in Index Server.
-
-    #     @param file_name:      File name to be searched.
-    #     """
-    #     try:
-    #         peer_to_server_socket = \
-    #             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         peer_to_server_socket.setsockopt(
-    #             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #         peer_to_server_socket.connect(
-    #             (self.peer_hostname, self.server_port))
-
-    #         cmd_issue = {
-    #             'command' : 'search',
-    #             'file_name' : file_name
-    #         }
-    #         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-    #         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-    #         #rcv_data=rcv_data.decode('utf-8')
-    #         if len(rcv_data) == 0:
-    #             print ("File Not Found")
-    #         else:
-    #             print ("\nFile Present in below following Peers:")
-    #             for peer in rcv_data:
-    #                 if peer == self.peer_id:
-    #                     print ("File Present Locally, Peer ID: %s" % peer)
-    #                 else:
-    #                     print ("Peer ID: %s" % peer)
-    #         peer_to_server_socket.close()
-    #     except Exception as e:
-    #         print ("Search File Error, %s" % e)
-
-    # def obtain(self, file_name, peer_request_id):
-    #     """
-    #     Download file from another peer.
-
-    #     @param file_name:          File name to be downloaded.
-    #     @param peer_request_id:    Peer ID to be downloaded.
-    #     """
-    #     try:
-    #         print(peer_request_id)
-    #         peer_request_addr, peer_request_port = peer_request_id.split(':')
-    #         peer_request_socket = \
-    #             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         peer_request_socket.setsockopt(
-    #             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #         peer_request_socket.connect(
-    #             (socket.gethostbyname('localhost'), int(peer_request_port)))
-
-    #         cmd_issue = {
-    #             'command' : 'obtain_active',
-    #             'file_name' : file_name
-    #         }
-    
-    #         peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-    #         rcv_data = peer_request_socket.recv(1024000)
-    #         rcv_data=rcv_data
-    #         print(rcv_data)
-    #         f = open(SHARED_DIR+'/'+file_name, 'wb')
-    #         rcv_data=self.secure(rcv_data)
-    #         f.write(rcv_data)
-    #         f.close()
-    #         peer_request_socket.close()
-    #         print ("File downloaded successfully")
-    #     except Exception as e:
-    #         print ("Obtain File Error, %s" % e)
     def secure(self, data):
 
     # Define XOR key 
@@ -527,48 +445,6 @@ if __name__ == '__main__':
         server_thread.start()
         p.generate_data_continuously()
         
-
-        # print ("Starting Sensor Updater Deamon Thread...")
-        # sensor_updater_thread = PeerOperations(2, "SensorUpdater", p)
-        # sensor_updater_thread.setDaemon(True)
-        # sensor_updater_thread.start()
-
-        # while True:
-        #     print ("*" * 20)
-        #     print ("1. List all files in Index Server")
-        #     print ("2. Search for File")
-        #     print ("3. Get File from Peer")
-        #     print ("4. Exit")
-        #     print ("*" * 5)
-        #     print ("Enter choice : ")
-        #     ops = input()
-
-        #     if int(ops) == 1:
-        #         p.list_files_index_server()
-
-        #     elif int(ops) == 2:
-        #         print ("Enter File Name: ")
-        #         file_name = input()
-        #         p.search_file(file_name)
-
-        #     elif int(ops) == 3:
-        #         print ("Enter File Name: ")
-        #         file_name = input()
-        #         print ("Enter Peer ID: ")
-        #         peer_request_id = input()
-        #         p.obtain(file_name, peer_request_id)
-
-        #     elif int(ops) == 4:
-        #         p.deregister_peer()
-        #         print ("Peer Shutting down...")
-        #         time.sleep(1)
-        #         break
-
-        #     else:
-        #         print ("Invaild choice...\n")
-        #         continue
-
-
     except Exception as e:
         print (e)
         sys.exit(1)

@@ -42,6 +42,7 @@ class ServerOperations(threading.Thread):
         #self.hash_table_data = {}
         self.hash_table_peer_data = {}
         self.leader=''
+        self.leader_nodes_connected=[]
         self.listener_queue = Queue()
 
     def server_listener(self):
@@ -103,6 +104,13 @@ class ServerOperations(threading.Thread):
             return True
         except Exception as e:
             print ("Peer Sensor Data Update failure: %s" % e)
+            return False
+    def connect(self, node_id):
+        try:
+            self.leader_nodes_connected.append(node_id)
+            return True
+        except Exception as e:
+            print ("Leader Nodes Connected Update failure: %s" % e)
             return False
 
     def list_peer_nodes(self):
@@ -225,10 +233,16 @@ class ServerOperations(threading.Thread):
 
                     elif data_received['command'] == 'connect':
                         fut = executor.submit(self.connect,
-                                                  data_received['file_name'])
-                        leader_node_address = fut.result(timeout= None)
-                        print ("leader, %s" % leader_node_address)
-                        conn.send(json.dumps(leader_node_address).encode('utf-8'))
+                                                  data_received['peer_id'])
+                        success = fut.result(timeout= None)
+                        if success:
+                            print ("Update of leader nodes connected: %s successful" \
+                                      % (data_received['peer_id']))
+                            conn.send(json.dumps(success).encode('utf-8'))
+                        else:
+                            print ("Update of leader nodes connected: %s unsuccessful" \
+                                      % (data_received['peer_id']))
+                            conn.send(json.dumps(success).encode('utf-8'))
 
                     elif data_received['command'] == 'deregister':
                         fut = executor.submit(self.deregistry, data_received)
@@ -251,6 +265,8 @@ class ServerOperations(threading.Thread):
                               self.hash_table_peer_data)
                     print("hash table: peer Leader: || %s" % \
                                 self.leader)
+                    print("hash table: leader nodes connected: || %s" % \
+                                self.leader_nodes_connected)
                     conn.close()
         # except Exception as e:
         #     print ("Server Operations error, %s " % e)
