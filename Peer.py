@@ -121,7 +121,7 @@ class PeerOperations(threading.Thread):
                         #     fut = executor.submit(
                         #         self.peer_server_upload, conn, data_received)
                         if data_received['command']== 'message' or data_received['command']=='connect':
-                            print("Message Recieved from: "+str(addr))
+                            print("Message Recieved from: "+data_received['peer_id'])
                             print(data_received['message'])
 
         except Exception as e:
@@ -196,7 +196,8 @@ class Peer():
 
             cmd_issue = {
                 'command' : 'message',
-                'message': message
+                'message': message,
+                'peer_id':self.peer_id
             }
     
             peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
@@ -213,10 +214,11 @@ class Peer():
                 socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         peer_request_socket.connect(
                 (socket.gethostbyname('localhost'), int(peer_request_port)))
-        message='Connection establish between Leader '+str(addr) +' and Leader '+str(self.peer_hostname+':'+self.peer_id)
+        message='Connection establish between Leader '+str(addr) +' and Leader '+str(self.peer_id)
         cmd_issue = {
                 'command' : 'connect',
-                'message': message
+                'message': message,
+                'peer_id':self.peer_id
             }
     
         peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
@@ -235,27 +237,34 @@ class Peer():
 
 
     def generate_data_continuously(self):
-        message=''
-        while True:
-            time.sleep(15)
-            data=self.generate_sensor_data()
+        try:
+            message=''
+            while True:
+                time.sleep(15)
+                data=self.generate_sensor_data()
 
-            print(self.data)
-            self.update_server(data)
+                print(self.data)
+                self.update_server(data)
             
-            if(self.data['fuel']<2):
-                message='Fuel low: Shutting off Device '+str(self.peer_id)
-                print(message)
-                self.broadcast_peers(message)
-                self.deregister_peer(message)
-                break
-            if(self.data['obstacle']<20):
-                message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
-                print(message)
-                self.broadcast_peers(message)
-            if(self.network):
-                if(self.peer_hostname+':'+self.peer_id==self.get_leader()):
-                    self.connect_network(args.network)
+                if(self.data['fuel']<2):
+                    message='Fuel low: Shutting off Device '+str(self.peer_id)
+                    print(message)
+                    self.broadcast_peers(message)
+                    self.deregister_peer(message)
+                    break
+                if(self.data['obstacle']<20):
+                    message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
+                    print(message)
+                    self.broadcast_peers(message)
+                if(self.network):
+                    if(self.peer_id==self.get_leader()):
+                        self.connect_network(args.network)
+        except Exception as e:
+            print('Continuous data generation error %s' %e)
+            self.deregister_peer()
+            sys.exit(1)
+
+
                    
     def update_server(self,data):
         #free_socket = self.get_free_socket()
