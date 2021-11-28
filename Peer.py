@@ -188,6 +188,7 @@ class Peer():
 
     def connect_network_leader(self,addr):
         hostname,port=addr.split(':')
+        message=''
         #get address of leader present in network with server with addr
         leader_addr=self.get_leader(hostname,port)
         peer_request_addr, peer_request_port = leader_addr.split(':')
@@ -198,7 +199,7 @@ class Peer():
         #connect leader of joining network with leader of existing network
         peer_request_socket.connect(
                 (peer_request_addr, int(peer_request_port)))
-        message='Connection established between Leader '+str(leader_addr) +' and Leader '+str(self.peer_id)
+        message='Connection established between Leader '+leader_addr +' and Leader '+str(self.peer_id)
         cmd_issue = {
                 'command' : 'connect',
                 'message': message,
