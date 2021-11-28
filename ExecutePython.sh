@@ -1,11 +1,11 @@
-python3 control.py -p 3365 > control.log &
+python3 control.py -p 33001 > control.log &
 sleep 20;
-python3 Peer.py -s 3365 > peer1.log &
+python3 Peer.py -s 33001 -p 33002 > peer1.log &
 sleep 20;
-python3 Peer.py -s 3365 > peer2.log &
+python3 Peer.py -s 33001 -p 33003 > peer2.log &
 sleep 20;
-python3 Peer.py -s 3365 > peer3.log &
+python3 Peer.py -s 33001 -p 33004 > peer3.log &
 sleep 20;
-python3 Peer.py -s 3365 > peer4.log &
+python3 Peer.py -s 33001 -p 33005 > peer4.log &
 sleep 20;
-python3 Peer.py -s 3365 > peer5.log &
+python3 Peer.py -s 33001 -p 33006 > peer5.log &

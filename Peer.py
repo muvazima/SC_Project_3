@@ -25,6 +25,7 @@ def get_args():
                         required=True,
                         action='store',
                         help='Index Server Port Number')
+    parser.add_argument('-p','--peer_port', type=str,required=True,action='store',help='Peer Port Number')
     parser.add_argument('-n','--network', type=str,required=False,action='store',help='IP address of network to connect to')
     args = parser.parse_args()
     return args
@@ -65,25 +66,25 @@ class PeerOperations(threading.Thread):
         Peer Server Listener Method is used Peer Server to listen on
         port: assigned by Index Server for incoming connections.
         """
-        try:
-            peer_server_socket = socket.socket(
-                socket.AF_INET, socket.SOCK_STREAM)
-            peer_server_socket.setsockopt(
-                socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_server_host = socket.gethostbyname(socket.gethostname())
-            
-            peer_server_port = self.peer.hosting_port
-            peer_server_socket.bind(
-                (peer_server_host, peer_server_port))
-            peer_server_socket.listen(100)
-            while True:
-                conn, addr = peer_server_socket.accept()
-                #print "Got connection from %s on port %s" \
-                #          % (addr[0], addr[1])
-                self.peer_server_listener_queue.put((conn,addr))
-        except Exception as e:
-            print ("Peer Server Listener on port Failed: %s" % e)
-            sys.exit(1)
+        # try:
+        peer_server_socket = socket.socket(
+            socket.AF_INET, socket.SOCK_STREAM)
+        peer_server_socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        peer_server_host = socket.gethostbyname(socket.gethostname())
+        
+        peer_server_port = self.peer.hosting_port
+        peer_server_socket.bind(
+            (peer_server_host, peer_server_port))
+        peer_server_socket.listen(100)
+        while True:
+            conn, addr = peer_server_socket.accept()
+            #print "Got connection from %s on port %s" \
+            #          % (addr[0], addr[1])
+            self.peer_server_listener_queue.put((conn,addr))
+        # except Exception as e:
+        #     print ("Peer Server Listener on port Failed: %s" % e)
+        #     sys.exit(1)
 
     def peer_server_host(self):
         """
@@ -142,13 +143,14 @@ class PeerOperations(threading.Thread):
             self.generate_data_continuosly()
 
 class Peer():
-    def __init__(self, server_port, network):
+    def __init__(self, server_port, peer_port,network):
         """
         Constructor used to initialize class object.
         """
         #if(':' not in server_port):
         self.peer_hostname = socket.gethostbyname(socket.gethostname())
         self.server_port = server_port
+        self.peer_port=peer_port
         #else:
             #self.peer_hostname,self.server_port=server_port.split(':')
         
@@ -291,23 +293,23 @@ class Peer():
                 % (self.peer_hostname))
 
 
-    def get_free_socket(self):
-        """
-        This method is used to obtain free socket port for the registring peer 
-        where the peer can use this port for hosting file as a server.
+    # def get_free_socket(self):
+    #     """
+    #     This method is used to obtain free socket port for the registring peer 
+    #     where the peer can use this port for hosting file as a server.
 
-        @return free_socket:    Socket port to be used as a Peer Server.
-        """
-        try:
-            peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_socket.bind(('', 0))
-            free_socket = peer_socket.getsockname()[1]
-            peer_socket.close()
-            return free_socket
-        except Exception as e:
-            print ("Obtaining free sockets failed: %s" % e)
-            sys.exit(1)
+    #     @return free_socket:    Socket port to be used as a Peer Server.
+    #     """
+    #     try:
+    #         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #         peer_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #         peer_socket.bind(('', 0))
+    #         free_socket = peer_socket.getsockname()[1]
+    #         peer_socket.close()
+    #         return free_socket
+    #     except Exception as e:
+    #         print ("Obtaining free sockets failed: %s" % e)
+    #         sys.exit(1)
 
     def register_peer(self):
         """
@@ -315,7 +317,7 @@ class Peer():
         """
         #try:
         data=self.generate_sensor_data()
-        free_socket = self.get_free_socket()
+        #free_socket = self.get_free_socket()
         print ("Registring Peer with Server...")
 
         peer_to_server_socket = \
@@ -327,7 +329,7 @@ class Peer():
 
         cmd_issue = {
                 'command' : 'register',
-                'peer_port' : free_socket,
+                'peer_port' : self.peer_port,
                 'data' : self.data,
             }
         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
@@ -335,14 +337,19 @@ class Peer():
         print(rcv_data)
         #rcv_data=rcv_data.decode('utf-8')
         peer_to_server_socket.close()
+        peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            #server_host = socket.gethostbyname('localhost')
+        peer_host = socket.gethostbyname(socket.gethostname())
+        peer_socket.bind((peer_host, int(self.peer_port)))
         if rcv_data[1]:
-            self.hosting_port = free_socket
-            self.peer_id = rcv_data[0] + ":" + str(free_socket)
+            self.hosting_port = int(self.peer_port)
+            self.peer_id = rcv_data[0] + ":" + self.peer_port
             print ("registration successfull, Peer ID: %s:%s" \
-                              % (rcv_data[0], free_socket))
+                              % (rcv_data[0], self.peer_port))
         else:
             print ("registration unsuccessfull, Peer ID: %s:%s" \
-                              % (rcv_data[0], free_socket))
+                              % (rcv_data[0], self.peer_port))
             #sys.exit(1)
         #except Exception as e:
         #print ("Registering Peer Error, %s" % e)
@@ -375,26 +382,26 @@ class Peer():
             print ("Listing Nodes from Index Server Error, %s" % e)
         
     def get_leader(self,hostname,server_port):
-        try:
-            peer_to_server_socket = \
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_to_server_socket.setsockopt(
-            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_to_server_socket.connect(
-                (hostname, int(server_port)))
+        #try:
+        peer_to_server_socket = \
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_to_server_socket.setsockopt(
+        socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        peer_to_server_socket.connect(
+            (hostname, int(server_port)))
 
-            cmd_issue = {
-                'command' : 'leader'
-                }
-            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-            rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-            #rcv_data=rcv_data.decode('utf-8')
-            peer_to_server_socket.close()
-            print ("leader:",rcv_data)
-            
-            return rcv_data
-        except Exception as e:
-            print ("Listing leader from Index Server Error, %s" % e)
+        cmd_issue = {
+            'command' : 'leader'
+            }
+        peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+        #rcv_data=rcv_data.decode('utf-8')
+        peer_to_server_socket.close()
+        print ("leader:",rcv_data)
+        
+        return rcv_data
+        #except Exception as e:
+            #print ("Listing leader from Index Server Error, %s" % e)
 
     def secure(self, data):
 
@@ -453,7 +460,7 @@ if __name__ == '__main__':
         args = get_args()
         print ("Starting Peer...")
         print(args.network)
-        p=Peer(args.server,args.network)
+        p=Peer(args.server,args.peer_port,args.network)
             
         p.register_peer()
 
