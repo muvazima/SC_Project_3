@@ -23,4 +23,4 @@ $ python3 peer.py -s 33002 -p 33003 -n '10.35.70.7:33001'
 
 ## Shell Script
 
-sh ExecutePython.sh
+sh shell.sh
