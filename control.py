@@ -152,6 +152,28 @@ class ServerOperations(threading.Thread):
             print ("Peer deregistration failure: %s" % e)
             return False
 
+    def secure(self, data):
+
+        xorKey = 'P';  
+        for i in range(len(data)):
+            try:
+              data = data[:i] + chr(ord(data[i]) ^ ord(xorKey)) +data[i + 1:]
+            except:
+              continue
+        return data
+    
+    def secure_dict(self,d):
+        secured_dict={}
+        for key,value in d.items():
+            if(isinstance(value,dict)):
+                secured_dict[self.secure(key)]=self.secure_dict(value)
+            elif(isinstance(value,(int,float))):
+                secured_dict[self.secure(key)]=self.secure(str(value))
+            else:
+                secured_dict[self.secure(key)]=self.secure(value)
+            
+        return secured_dict
+
     def run(self):
         """
         Starting thread to carry out server operations.
@@ -167,9 +189,9 @@ class ServerOperations(threading.Thread):
             while not self.listener_queue.empty():
                 with futures.ThreadPoolExecutor(max_workers=8) as executor:
                     conn, addr = self.listener_queue.get()
-                    data_received = json.loads(conn.recv(1024).decode('utf-8'))
+                    secured_data_received = json.loads(conn.recv(1024).decode('utf-8'))
                         #data_recieved=data_recieved.decode('utf-8')
-
+                    data_received=self.secure_dict(secured_data_received)
                     print ("Got connection from %s on port %s, requesting " \
                               "for: %s" % (addr[0], addr[1], data_received['command']))
 

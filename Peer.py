@@ -44,7 +44,7 @@ class PeerOperations(threading.Thread):
         self.name = name
         self.peer = p
         self.peer_server_listener_queue = Queue()
-        
+    
     def secure(self, data):
 
     # Define XOR key 
@@ -60,6 +60,22 @@ class PeerOperations(threading.Thread):
            
     #print "Encrypted message = ",data
        return data
+    
+    def secure_dict(self,d):
+        secured_dict={}
+        for key,value in d.items():
+            if(isinstance(value,dict)):
+                secured_dict[self.secure(key)]=self.secure_dict(value)
+            elif(isinstance(value,(int,float))):
+                secured_dict[self.secure(key)]=self.secure(str(value))
+            else:
+                secured_dict[self.secure(key)]=self.secure(value)
+            
+        return secured_dict
+    
+    
+
+
 
     def peer_server_listener(self):
         """
@@ -95,7 +111,8 @@ class PeerOperations(threading.Thread):
                 while not self.peer_server_listener_queue.empty():
                     with futures.ThreadPoolExecutor(max_workers=8) as executor:
                         conn, addr = self.peer_server_listener_queue.get()
-                        data_received = json.loads(conn.recv(1024).decode('utf-8'))
+                        secured_data_received = json.loads(conn.recv(1024).decode('utf-8'))
+                        data_received=self.secure_dict(secured_data_received)
                         #data_received=data_received.decode('utf-8')
 
                         # if data_received['command'] == 'obtain_active':
@@ -188,8 +205,8 @@ class Peer():
                 'message': message,
                 'peer_id':self.peer_id
             }
-    
-            peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+            secured_cmd_issue=self.secure_dict(cmd_issue)
+            peer_request_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
             rcv_data = peer_request_socket.recv(1024000)
             if(rcv_data):
                 print('Message Broadcasted successfully.')
@@ -214,7 +231,8 @@ class Peer():
                 'command' : 'connect',
                 'message': message,
                 'peer_id':self.peer_id }
-        peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        secured_cmd_issue=self.secure_dict(cmd_issue)
+        peer_request_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
         rcv_data = peer_request_socket.recv(1024000)
         if(rcv_data):
             print('Leaders connected successfully.')
@@ -229,7 +247,8 @@ class Peer():
         cmd_issue = {
                 'command' : 'connect_update',
                 'peer_id':self.peer_id }
-        peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        secured_cmd_issue=self.secure_dict(cmd_issue)
+        peer_request_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
         rcv_data = peer_request_socket.recv(1024000)
         if(rcv_data):
             print('Server updated with leader connection')
@@ -244,7 +263,9 @@ class Peer():
         cmd_issue = {
                 'command' : 'connect_update',
                 'peer_id':leader_addr }
-        peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+
+        secured_cmd_issue=self.secure_dict(cmd_issue)
+        peer_request_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
         rcv_data = peer_request_socket.recv(1024000)
         if(rcv_data):
             print('Server updated with leader connection')
@@ -274,7 +295,9 @@ class Peer():
                 print(message)
                 self.broadcast_peers(message)
                 self.deregister_peer(message)
+                self.elect_leader()
                 break
+            
             if(sensor.isObstacleFound(self.data['obstacle'])):
                 message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
                 print(message)
@@ -289,16 +312,17 @@ class Peer():
         peer_to_server_socket.setsockopt(
             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         peer_to_server_socket.connect((self.peer_hostname, self.server_port))
-        peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        secured_cmd_issue=self.secure_dict(cmd_issue)
+        peer_to_server_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
         #print(rcv_data)
         peer_to_server_socket.close()
         if rcv_data:
             print ("Data Update of Peer: %s on server successful" \
-                % (self.peer_hostname))
+                % (self.peer_id))
         else:
             print ("Data Update of Peer: %s on server unsuccessful" \
-                % (self.peer_hostname))
+                % (self.peer_id))
 
 
 
@@ -323,7 +347,8 @@ class Peer():
                 'peer_port' : self.peer_port,
                 'data' : self.data,
             }
-        peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        secured_cmd_issue=self.secure_dict(cmd_issue)
+        peer_to_server_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
         #print(rcv_data)
         #rcv_data=rcv_data.decode('utf-8')
@@ -364,16 +389,17 @@ class Peer():
         peer_to_server_socket.setsockopt(
             socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         peer_to_server_socket.connect((self.peer_hostname, self.server_port))
-        peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        secured_cmd_issue=self.secure_dict(cmd_issue)
+        peer_to_server_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
         #print(rcv_data)
         peer_to_server_socket.close()
         if rcv_data:
             print ("Leader Update: %s on server successful" \
-                % (self.peer_hostname))
+                % (self.peer_id))
         else:
             print ("Leader Update: %s on server unsuccessful" \
-                % (self.peer_hostname))
+                % (self.peer_id))
 
 
 
@@ -392,7 +418,8 @@ class Peer():
             cmd_issue = {
                 'command' : 'list'
             }
-            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+            secured_cmd_issue=self.secure_dict(cmd_issue)
+            peer_to_server_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
             rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
             #rcv_data=rcv_data.decode('utf-8')
             peer_to_server_socket.close()
@@ -416,11 +443,12 @@ class Peer():
             cmd_issue = {
             'command' : 'leader'
             }
-            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+            secured_cmd_issue=self.secure_dict(cmd_issue)
+            peer_to_server_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
             rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
         #rcv_data=rcv_data.decode('utf-8')
             peer_to_server_socket.close()
-            print ("leader:",rcv_data)
+            #print ("leader:",rcv_data)
         
             return rcv_data
         except Exception as e:
@@ -428,18 +456,26 @@ class Peer():
 
     def secure(self, data):
 
-    # Define XOR key 
         xorKey = 'P';  
   
-    # perform XOR operation of key with every character in string 
-
         for i in range(len(data)):
             try:
               data = data[:i] + chr(ord(data[i]) ^ ord(xorKey)) +data[i + 1:]
             except:
               continue
-    #print "Encrypted message = ",data
         return data
+    
+    def secure_dict(self,d):
+        secured_dict={}
+        for key,value in d.items():
+            if(isinstance(value,dict)):
+                secured_dict[self.secure(key)]=self.secure_dict(value)
+            elif(isinstance(value,(int,float))):
+                secured_dict[self.secure(key)]=self.secure(str(value))
+            else:
+                secured_dict[self.secure(key)]=self.secure(value)
+            
+        return secured_dict
 
     def deregister_peer(self,message=''):
         """
@@ -447,7 +483,6 @@ class Peer():
         """
         try:
             print ("Deregistring Peer with Server...")
-            self.elect_leader()
             peer_to_server_socket = \
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(
@@ -462,7 +497,8 @@ class Peer():
                 'message':message,
                 'hosting_port' : self.hosting_port
             }
-            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+            secured_cmd_issue=self.secure_dict(cmd_issue)
+            peer_to_server_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
             rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
             #rcv_data=rcv_data.decode('utf-8')
             peer_to_server_socket.close()
@@ -482,12 +518,12 @@ if __name__ == '__main__':
     try:
         args = get_args()
         print ("Starting Peer...")
-        print(args.network)
+        #print(args.network)
         p=Peer(args.server,args.peer_port,args.network)
             
         p.register_peer()
 
-        print ("Stating Peer Server Deamon Thread...")
+        print ("Starting Peer Server Deamon Thread...")
         server_thread = PeerOperations(1, "PeerServer", p)
         server_thread.setDaemon(True)
         server_thread.start()
@@ -498,6 +534,7 @@ if __name__ == '__main__':
         sys.exit(1)
     except (KeyboardInterrupt, SystemExit):
         p.deregister_peer()
+        p.elect_leader()
         print ("Peer Shutting down...")
         time.sleep(1)
         sys.exit(1)
