@@ -4,56 +4,39 @@ import socket
 import time
 import threading
 import json
-import random
 import argparse
 import sys
 from multiprocessing import Queue
 from concurrent import futures
 
-
+#get arguments from command line
 def get_args():
-    """
-    Get command line args from the user.
-    """
     parser = argparse.ArgumentParser(
-        description='Standard Arguments for talking to Central Index Server')
-    parser.add_argument('-p', '--port',
-                        type=int,
-                        required=True,
-                        action='store',
-                        help='Server Port Number')
-    
+        description='Arguments for index server')
+    parser.add_argument('-p', '--port',type=int,required=True,action='store', help='Index Server Port Number')
     args = parser.parse_args()
     return args
 
 class ServerOperations(threading.Thread):
+    #initialize serverOperations object
     def __init__(self, threadid, name, server_port):
-        """
-        Constructor used to initialize class object.
-
-        @param threadid:    Thread ID.
-        @param name:        Name of the thread.
-        """
+        
         threading.Thread.__init__(self)
         self.threadID = threadid
         self.name = name
         self.server_port = server_port
         self.hash_table_ports_peers = {}
-        #self.hash_table_data = {}
         self.hash_table_peer_data = {}
         self.leader=''
         self.leader_nodes_connected=[]
         self.listener_queue = Queue()
 
+    #use index server port  to listen to incoming connections to index server
     def server_listener(self):
-        """
-        Server Listener Method is used start Central Index Server to listen on
-        port: 3344 for incoming connections.
-        """
+    
         try:
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            #server_host = socket.gethostbyname('localhost')
             server_host = socket.gethostbyname(socket.gethostname())
             server_socket.bind((server_host, self.server_port))
             server_socket.listen(100)
@@ -64,35 +47,21 @@ class ServerOperations(threading.Thread):
             print ("Server Listener on port Failed: %s" % e)
             sys.exit(1)
 
+    #function invoked by peer trying to register to index server
     def registry(self, addr, data, peer_port):
-        """
-        This method is invoked by the peer trying to register itself 
-        with the Indexing Server.
-
-        @param addr:           Address of the incoming connection.
-        @param files:          File list sent by the peer.
-        @param peer_port:      Peer's server port.
-
-        @return free_socket:   Socket port to be used as a Peer Server.
-        """
+    
         try:
             self.hash_table_ports_peers[peer_port] = addr[0]
             peer_id = addr[0] + ":" + str(peer_port)
+            #add peer to hash table
             self.hash_table_peer_data[peer_id] = data
-            #self.leader=peer_id
             return True
         except Exception as e:
             print ("Peer registration failure: %s" % e)
             return False
 
+    #function invoked by peer trying to update sensor data to index server
     def update(self, peer_update):
-        """
-        This method is invoked by the peer's file handler to update the files 
-        in the Index Server. Peer file handler invokes this method upon addition 
-        of new file or removal of existing file.
-
-        @param peer_update:      Peer File Update details.
-        """
         try:
             self.hash_table_peer_data[peer_update['peer_id']]=peer_update['data']
             return True
@@ -100,6 +69,7 @@ class ServerOperations(threading.Thread):
             print ("Peer Sensor Data Update failure: %s" % e)
             return False
 
+    #function invoked by peer trying to update leader info to index server
     def update_leader(self,peer_id):
         try:
             self.leader=peer_id
@@ -108,6 +78,7 @@ class ServerOperations(threading.Thread):
             print ("Peer Leader Update failure: %s" % e)
             return False
 
+    #function invoked by peer trying to update connection of networks to index server
     def connect(self, node_id):
         try:
             self.leader_nodes_connected.append(node_id)
@@ -116,32 +87,21 @@ class ServerOperations(threading.Thread):
             print ("Leader Nodes Connected Update failure: %s" % e)
             return False
 
+    #function invoked by peer to list nodes present in network
     def list_peer_nodes(self):
-        """
-        This method is used display the list of files registered with 
-        the Central Index Server.
+        try:
+            nodes_list = self.hash_table_peer_data.keys()
+            return nodes_list
 
-        @return files_list:    List of files present in the server.
-        """
-        #try:
-        nodes_list = self.hash_table_peer_data.keys()
-        #print(nodes_list)
-        return nodes_list
+        except Exception as e:
+            print ("Listing Peer Nodes Error, %s" % e)
 
-        #except Exception as e:
-            #print ("Listing Peer Nodes Error, %s" % e)
+    #function invoked by peer to get leader of a network
     def get_leader(self):
         return self.leader
     
-
+    #function invoked by peer to deregister itself from index server
     def deregistry(self, peer_data):
-        """
-        The method is invoked when the Peer dies or Peer shutsdown to 
-        remove all its entry from the Central Index Server.
-
-        @param peer_data:      Peer data containing Peer details.
-        @return True/False:    Return success or failure.
-        """
         try:
             if peer_data['hosting_port'] in self.hash_table_ports_peers:
                 self.hash_table_ports_peers.pop(peer_data['hosting_port'], None)
@@ -152,16 +112,17 @@ class ServerOperations(threading.Thread):
             print ("Peer deregistration failure: %s" % e)
             return False
 
-    def secure(self, data):
-
-        xorKey = 'P';  
-        for i in range(len(data)):
+    #function to encrypt and decrypt string data
+    def secure(self, str_data):
+        Key = 'N';  
+        for i in range(len(str_data)):
             try:
-              data = data[:i] + chr(ord(data[i]) ^ ord(xorKey)) +data[i + 1:]
+              str_data = str_data[:i] + chr(ord(str_data[i]) ^ ord(Key)) +str_data[i + 1:]
             except:
               continue
-        return data
+        return str_data
     
+    #function to encrypt and decrypt dict data
     def secure_dict(self,d):
         secured_dict={}
         for key,value in d.items():
@@ -171,13 +132,10 @@ class ServerOperations(threading.Thread):
                 secured_dict[self.secure(key)]=self.secure(str(value))
             else:
                 secured_dict[self.secure(key)]=self.secure(value)
-            
         return secured_dict
 
+    #function to start index xerver thread
     def run(self):
-        """
-        Starting thread to carry out server operations.
-        """
         #try:
         print ("Starting Server Listener Daemon Thread...")
         listener_thread = threading.Thread(target=self.server_listener)
