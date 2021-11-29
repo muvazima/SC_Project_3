@@ -1,12 +1,11 @@
 #!/usr/bin/python
-
-import socket
-import time
-import threading
-import json
 import argparse
-import sys
 from multiprocessing import Queue
+import time
+import sys
+import socket
+import json
+import threading
 from concurrent import futures
 
 #get arguments from command line
@@ -17,7 +16,7 @@ def get_args():
     args = parser.parse_args()
     return args
 
-class ServerOperations(threading.Thread):
+class IndexServerOperations(threading.Thread):
     #initialize serverOperations object
     def __init__(self, threadid, name, server_port):
         
@@ -137,7 +136,7 @@ class ServerOperations(threading.Thread):
     #function to start index xerver thread
     def run(self):
         #try:
-        print ("Starting Server Listener Daemon Thread...")
+
         listener_thread = threading.Thread(target=self.server_listener)
         listener_thread.setDaemon(True)
         listener_thread.start()
@@ -148,7 +147,6 @@ class ServerOperations(threading.Thread):
                 with futures.ThreadPoolExecutor(max_workers=8) as executor:
                     conn, addr = self.listener_queue.get()
                     secured_data_received = json.loads(conn.recv(1024).decode('utf-8'))
-                        #data_recieved=data_recieved.decode('utf-8')
                     data_received=self.secure_dict(secured_data_received)
                     print ("Got connection from %s on port %s, requesting " \
                               "for: %s" % (addr[0], addr[1], data_received['command']))
@@ -201,8 +199,7 @@ class ServerOperations(threading.Thread):
                         conn.send(json.dumps(success).encode('utf-8'))
 
                     elif data_received['command'] == 'connect_update':
-                        fut = executor.submit(self.connect,
-                                                  data_received['peer_id'])
+                        fut = executor.submit(self.connect,data_received['peer_id'])
                         success = fut.result(timeout= None)
                         if success:
                             print ("Update of leader nodes connected: %s successful" \
@@ -226,36 +223,25 @@ class ServerOperations(threading.Thread):
                                       % (data_received['peer_id']))
                             conn.send(json.dumps(success).encode('utf-8'))
 
-                        # print ("hash table: Files || %s" % \
-                        #       self.hash_table_files)
-                    print ("hash table: Port-Peers || %s" % \
-                              self.hash_table_ports_peers)
-                    print ("hash table: Peer-Data || %s" % \
-                              self.hash_table_peer_data)
-                    print("hash table: peer Leader: || %s" % \
-                                self.leader)
-                    print("hash table: leader nodes connected: || %s" % \
-                                self.leader_nodes_connected)
+                    
+                    print ("Peer ports : %s" % self.hash_table_ports_peers)
+                    print ("Peer sensor data : %s" % self.hash_table_peer_data)
+                    print ("Peer Leader:  %s" % self.leader)
+                    print ("Leader nodes connected: %s" % self.leader_nodes_connected)
                     conn.close()
-        # except Exception as e:
-        #     print ("Server Operations error, %s " % e)
-        #     sys.exit(1)
-
+        
 if __name__ == '__main__':
-    """
-    Main method to start daemon threads for listener and operations.
-    """
+    
     try:
         args = get_args()
-        print ("Starting Central Indexing Server...")
-        print ("Starting Server Operations Thread...")
-        operations_thread = ServerOperations(1, "ServerOperations",args.port) 
-        operations_thread.start()
+        print ("Index Server.....")
+        oper_thread = IndexServerOperations(1, "IndexServerOperations",args.port) 
+        oper_thread.start()
         
     except Exception as e:
         print (e)
         sys.exit(1)
     except (KeyboardInterrupt, SystemExit):
-        print ("Central Index Server Shutting down...")
+        print ("Index Server Switching off.....")
         time.sleep(1)
         sys.exit(1)

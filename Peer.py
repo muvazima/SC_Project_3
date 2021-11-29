@@ -326,10 +326,6 @@ class Peer():
         else:
             print ("Registration unsuccessfull, Peer ID: %s:%s" \
                               % (rcv_data[0], self.peer_port))
-            #sys.exit(1)
-        #except Exception as e:
-        #print ("Registering Peer Error, %s" % e)
-        #sys.exit(1)
 
     #Function to elect leader
     def elect_leader(self):
@@ -468,12 +464,9 @@ class Peer():
 if __name__ == '__main__':
     try:
         args = get_args()
-        print ("Starting Peer...")
-        p=Peer(args.server,args.peer_port,args.network)
-            
+        print ("Peer is Starting...")
+        p=Peer(args.server,args.peer_port,args.network) 
         p.register_peer()
-
-        print ("Starting Peer Server Deamon Thread...")
         server_thread = PeerOperations(1, "PeerServer", p)
         server_thread.setDaemon(True)
         server_thread.start()
