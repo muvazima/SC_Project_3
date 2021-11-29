@@ -1,5 +1,6 @@
 import random
 
+# 1 Fuel
 def FuelSensor():
     
     fuel=random.uniform(0, 100)
@@ -62,3 +63,16 @@ def Light():
 
     light=random.uniform(0.5, 5000)
     return light
+
+#Actuator 1 - Check if Enough Fuel Available
+def isEnoughFuelAvailable(Fuel):
+
+    if(Fuel<5):
+        return False
+    return True
+
+#Actuator 2 - Check if Obstacle Found
+def isObstacleFound(Obstacle):
+    if(Obstacle<10):
+        return True
+    return False

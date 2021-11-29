@@ -79,12 +79,7 @@ class ServerOperations(threading.Thread):
             self.hash_table_ports_peers[peer_port] = addr[0]
             peer_id = addr[0] + ":" + str(peer_port)
             self.hash_table_peer_data[peer_id] = data
-            self.leader=peer_id
-            # for f in files:
-            #     if f in self.hash_table_files:
-            #         self.hash_table_files[f].append(peer_id)
-            #     else:
-            #         self.hash_table_files[f] = [peer_id]
+            #self.leader=peer_id
             return True
         except Exception as e:
             print ("Peer registration failure: %s" % e)
@@ -100,12 +95,19 @@ class ServerOperations(threading.Thread):
         """
         try:
             self.hash_table_peer_data[peer_update['peer_id']]=peer_update['data']
-
-
             return True
         except Exception as e:
             print ("Peer Sensor Data Update failure: %s" % e)
             return False
+
+    def update_leader(self,peer_id):
+        try:
+            self.leader=peer_id
+            return True
+        except Exception as e:
+            print ("Peer Leader Update failure: %s" % e)
+            return False
+
     def connect(self, node_id):
         try:
             self.leader_nodes_connected.append(node_id)
@@ -130,21 +132,7 @@ class ServerOperations(threading.Thread):
             #print ("Listing Peer Nodes Error, %s" % e)
     def get_leader(self):
         return self.leader
-    # def search(self, file_name):
-    #     """
-    #     This method is used to search for a particular file.
-
-    #     @param file_name:    File name to be searched.
-    #     @return:             List of Peers associated with the file.
-    #     """
-    #     try:
-    #         if file_name in self.hash_table_files:
-    #             peer_list = self.hash_table_files[file_name]
-    #         else:
-    #             peer_list = []
-    #         return peer_list
-    #     except Exception as e:
-    #         print ("Listing Files Error, %s" % e)
+    
 
     def deregistry(self, peer_data):
         """
@@ -159,13 +147,6 @@ class ServerOperations(threading.Thread):
                 self.hash_table_ports_peers.pop(peer_data['hosting_port'], None)
             if peer_data['peer_id'] in self.hash_table_peer_data:
                 self.hash_table_peer_data.pop(peer_data['peer_id'], None)
-            # for f in peer_data['files']:
-            #     if f in self.hash_table_files:
-            #         for peer_id in self.hash_table_files[f]:
-            #             if peer_id == peer_data['peer_id']:
-            #                 self.hash_table_files[f].remove(peer_id)
-            #                 if len(self.hash_table_files[f]) == 0:
-            #                     self.hash_table_files.pop(f, None)
             return True
         except Exception as e:
             print ("Peer deregistration failure: %s" % e)
@@ -231,6 +212,13 @@ class ServerOperations(threading.Thread):
                         leader = fut.result(timeout= None)
                         print ("Leader node: , %s" % leader)
                         conn.send(json.dumps(leader).encode('utf-8'))
+                    
+                    elif data_received['command']=='update_leader':
+                        fut = executor.submit(self.update_leader,data_received['peer_id'])
+                        #print(self.list_peer_nodes())
+                        success = fut.result(timeout= None)
+                        print ("Updated Leader node: , %s" % data_received['peer_id'])
+                        conn.send(json.dumps(success).encode('utf-8'))
 
                     elif data_received['command'] == 'connect_update':
                         fut = executor.submit(self.connect,

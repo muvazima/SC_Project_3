@@ -156,6 +156,7 @@ class Peer():
         
         self.data = {}
         self.network=network
+        self.leader=False
     
     def generate_sensor_data(self):
         self.data['light']= sensor.Light()
@@ -170,7 +171,7 @@ class Peer():
     def broadcast_peers(self, message):
         nodes=self.list_nodes()
         for node in nodes:
-            if(node==self.peer_hostname+':'+self.peer_id):
+            if(node==self.peer_id):
                 continue
             peer_request_addr, peer_request_port = node.split(':')
             peer_request_socket = \
@@ -190,9 +191,10 @@ class Peer():
     
             peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
             rcv_data = peer_request_socket.recv(1024000)
-            print(rcv_data)
+            if(rcv_data):
+                print('Message Broadcasted successfully.')
             peer_request_socket.close()
-        return rcv_data
+        
 
     def connect_network_leader(self,addr):
         hostname,port=addr.split(':')
@@ -214,7 +216,8 @@ class Peer():
                 'peer_id':self.peer_id }
         peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
         rcv_data = peer_request_socket.recv(1024000)
-        print(rcv_data)
+        if(rcv_data):
+            print('Leaders connected successfully.')
         peer_request_socket.close()
 
         #update incoming network's server 
@@ -228,7 +231,8 @@ class Peer():
                 'peer_id':self.peer_id }
         peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
         rcv_data = peer_request_socket.recv(1024000)
-        print(rcv_data)
+        if(rcv_data):
+            print('Server updated with leader connection')
         peer_request_socket.close()
         
         #update the current network's server
@@ -242,35 +246,39 @@ class Peer():
                 'peer_id':leader_addr }
         peer_request_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
         rcv_data = peer_request_socket.recv(1024000)
-        print(rcv_data)
+        if(rcv_data):
+            print('Server updated with leader connection')
         peer_request_socket.close()
 
         
-
-
     def generate_data_continuously(self):
         #try:
+        #time.sleep(15)
+        self.elect_leader()
         if(self.network):
-                if(self.peer_id==self.get_leader(self.peer_hostname,self.server_port)):
+                #if(self.peer_id==self.get_leader(self.peer_hostname,self.server_port)):
+                if(self.leader==True):
                     self.connect_network_leader(self.network)
         message=''
+        
         while True:
+
             time.sleep(15)
             data=self.generate_sensor_data()
-
             print(self.data)
             self.update_server(data)
 
-            if(self.data['fuel']<2):
+            #if(self.data['fuel']<2):
+            if(not sensor.isEnoughFuelAvailable(self.data['fuel'])):
                 message='Fuel low: Shutting off Device '+str(self.peer_id)
                 print(message)
                 self.broadcast_peers(message)
                 self.deregister_peer(message)
                 break
-            if(self.data['obstacle']<20):
+            if(sensor.isObstacleFound(self.data['obstacle'])):
                 message='Obstacle found at Latitude:'+str(self.data['location']['Latitude'])+', Longitude:'+str(self.data['location']['Longitude'])
                 print(message)
-                suc=self.broadcast_peers(message)
+                self.broadcast_peers(message)
                 continue
               
     def update_server(self,data):
@@ -283,7 +291,7 @@ class Peer():
         peer_to_server_socket.connect((self.peer_hostname, self.server_port))
         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-        print(rcv_data)
+        #print(rcv_data)
         peer_to_server_socket.close()
         if rcv_data:
             print ("Data Update of Peer: %s on server successful" \
@@ -293,23 +301,6 @@ class Peer():
                 % (self.peer_hostname))
 
 
-    # def get_free_socket(self):
-    #     """
-    #     This method is used to obtain free socket port for the registring peer 
-    #     where the peer can use this port for hosting file as a server.
-
-    #     @return free_socket:    Socket port to be used as a Peer Server.
-    #     """
-    #     try:
-    #         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         peer_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #         peer_socket.bind(('', 0))
-    #         free_socket = peer_socket.getsockname()[1]
-    #         peer_socket.close()
-    #         return free_socket
-    #     except Exception as e:
-    #         print ("Obtaining free sockets failed: %s" % e)
-    #         sys.exit(1)
 
     def register_peer(self):
         """
@@ -334,7 +325,7 @@ class Peer():
             }
         peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
         rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-        print(rcv_data)
+        #print(rcv_data)
         #rcv_data=rcv_data.decode('utf-8')
         peer_to_server_socket.close()
         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -354,6 +345,37 @@ class Peer():
         #except Exception as e:
         #print ("Registering Peer Error, %s" % e)
         #sys.exit(1)
+    def elect_leader(self):
+        ip_nodes=self.list_nodes()
+        nodes=[int(x.split(':')[1]) for x in ip_nodes]
+        if(int(self.peer_port)==max(nodes) and self.leader==False):
+            self.leader=True
+            self.update_leader_in_server()
+            self.broadcast_peers('I am the leader!!')
+        else:
+            self.leader==False
+            
+    
+    def update_leader_in_server(self):
+       
+        cmd_issue = {'command' : 'update_leader','peer_id' : self.peer_id}
+        peer_to_server_socket = \
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_to_server_socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        peer_to_server_socket.connect((self.peer_hostname, self.server_port))
+        peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+        rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+        #print(rcv_data)
+        peer_to_server_socket.close()
+        if rcv_data:
+            print ("Leader Update: %s on server successful" \
+                % (self.peer_hostname))
+        else:
+            print ("Leader Update: %s on server unsuccessful" \
+                % (self.peer_hostname))
+
+
 
     def list_nodes(self):
         """
@@ -383,23 +405,26 @@ class Peer():
         
     def get_leader(self,hostname,server_port):
         #try:
-        peer_to_server_socket = \
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        peer_to_server_socket.setsockopt(
-        socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        peer_to_server_socket.connect(
+        if(self.leader==True):
+            return self.peer_id
+        else:
+            peer_to_server_socket = \
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peer_to_server_socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            peer_to_server_socket.connect(
             (hostname, int(server_port)))
 
-        cmd_issue = {
+            cmd_issue = {
             'command' : 'leader'
             }
-        peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
-        rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
+            peer_to_server_socket.sendall(json.dumps(cmd_issue).encode('utf-8'))
+            rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
         #rcv_data=rcv_data.decode('utf-8')
-        peer_to_server_socket.close()
-        print ("leader:",rcv_data)
+            peer_to_server_socket.close()
+            print ("leader:",rcv_data)
         
-        return rcv_data
+            return rcv_data
         #except Exception as e:
             #print ("Listing leader from Index Server Error, %s" % e)
 
@@ -424,7 +449,7 @@ class Peer():
         """
         try:
             print ("Deregistring Peer with Server...")
-
+            self.elect_leader()
             peer_to_server_socket = \
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(
@@ -479,4 +504,4 @@ if __name__ == '__main__':
         time.sleep(1)
         sys.exit(1)
 
-__author__ = 'arihant'
+__author__ = 'muvazima'
