@@ -396,18 +396,16 @@ class Peer():
             rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
             #rcv_data=rcv_data.decode('utf-8')
             peer_to_server_socket.close()
-            print ("Node List in Server:")
-            for f in rcv_data:
-                print (f)
+            # print ("Node List in Server:")
+            # for f in rcv_data:
+            #     print (f)
             return rcv_data
         except Exception as e:
             print ("Listing Nodes from Index Server Error, %s" % e)
         
     def get_leader(self,hostname,server_port):
-        #try:
-        if(self.leader==True):
-            return self.peer_id
-        else:
+        try:
+        
             peer_to_server_socket = \
             socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(
@@ -425,8 +423,8 @@ class Peer():
             print ("leader:",rcv_data)
         
             return rcv_data
-        #except Exception as e:
-            #print ("Listing leader from Index Server Error, %s" % e)
+        except Exception as e:
+            print ("Listing leader from Index Server Error, %s" % e)
 
     def secure(self, data):
 
