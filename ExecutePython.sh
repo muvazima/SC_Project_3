@@ -1,3 +1,4 @@
+#!/bin/bash
 python3 control.py -p 33001 > control.log &
 sleep 20;
 python3 Peer.py -s 33001 -p 33002 > peer1.log &
