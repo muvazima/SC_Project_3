@@ -84,6 +84,9 @@ class PeerOperations(threading.Thread):
                         if data_received['command']== 'message' or data_received['command']=='connect':
                             print("Message Recieved from: "+data_received['peer_id'])
                             print(data_received['message'])
+                            conn.send(json.dumps(True).encode('utf-8'))
+                        else:
+                            conn.send(json.dumps(False).encode('utf-8'))
 
         except Exception as e:
             print ("Peer Server Connection Processing Error, %s" % e)
@@ -166,7 +169,7 @@ class Peer():
                 #Check if the message was recieved
                 rcv_data = peer_request_socket.recv(1024000)
                 if(rcv_data):
-                    print('Message Broadcasted successfully.')
+                    print('Message: ' +cmd_issue['message']+' Broadcasted successfully.')
                 peer_request_socket.close()
         except Exception as e:
             print ("Broadcast Peer Error, %s" % e)
@@ -212,7 +215,7 @@ class Peer():
             peer_request_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
             rcv_data = peer_request_socket.recv(1024000)
             if(rcv_data):
-                print('Server updated with leader connection')
+                print('Index Server: '+addr+ ' updated with network leaders connection')
             peer_request_socket.close()
             
             #update the current network's server
@@ -229,7 +232,7 @@ class Peer():
             peer_request_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
             rcv_data = peer_request_socket.recv(1024000)
             if(rcv_data):
-                print('Server updated with leader connection')
+                print('Index Server:'+self.peer_hostname+':'+str(self.server_port)+' updated with network leaders connection')
             peer_request_socket.close()
         except Exception as e:
             print ("Leader Connection Error, %s" % e)
@@ -296,14 +299,14 @@ class Peer():
                 print ("Data Update of Peer: %s on server unsuccessful" \
                     % (self.peer_id))
         except Exception as e:
-            print ("Update Server Error, %s" % e)
+            print ("Update Index Server Error, %s" % e)
 
 
     #FUnction to register peer with index server
     def register_peer(self):
         try:
             data=self.generate_sensor_data()
-            print ("Registring Peer with Server...")
+            print ("Registering Peer with Index Server...")
 
             peer_to_server_socket = \
                     socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -330,10 +333,10 @@ class Peer():
             if rcv_data[1]:
                 self.hosting_port = int(self.peer_port)
                 self.peer_id = rcv_data[0] + ":" + self.peer_port
-                print ("Registration successfull, Peer ID: %s:%s" \
+                print ("Registration successful, Peer ID: %s:%s" \
                                 % (rcv_data[0], self.peer_port))
             else:
-                print ("Registration unsuccessfull, Peer ID: %s:%s" \
+                print ("Registration unsuccessful, Peer ID: %s:%s" \
                                 % (rcv_data[0], self.peer_port))
         except Exception as e:
             print ("Registering Peer Error, %s" % e)
@@ -458,7 +461,7 @@ class Peer():
     #function to deregister peer from the index server
     def deregister_peer(self,message=''):
         try:
-            print ("Deregistring Peer with Server...")
+            print ("Deregistering Peer with Index Server...")
             peer_to_server_socket = \
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             peer_to_server_socket.setsockopt(
