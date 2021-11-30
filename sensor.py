@@ -67,7 +67,7 @@ def Light():
 #Actuator 1 - Check if Enough Fuel Available
 def isEnoughFuelAvailable(Fuel):
 
-    if(Fuel<5):
+    if(Fuel<2):
         return False
     return True
 
