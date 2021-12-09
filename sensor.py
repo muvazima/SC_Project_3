@@ -13,7 +13,6 @@ def ProximitySensor():
     proximity = (data['x'] ** 2 + data['y'] ** 2) ** 0.5
     return proximity
 
-
 # 3 Power
 def PowerSensor():
     
