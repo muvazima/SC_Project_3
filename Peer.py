@@ -33,7 +33,7 @@ class PeerOperations(threading.Thread):
     #Function for encrypting or decrypting string data
     def secure(self, str_data):
     # use XOR key to encode every character of a string
-       Key = 'P';  
+       Key = 'N';  
        for i in range(len(str_data)):
             try:
                 str_data = str_data[:i] + chr(ord(str_data[i]) ^ ord(Key)) +str_data[i + 1:]
@@ -427,7 +427,7 @@ class Peer():
     #function for encrypting and decrypting string of data
     def secure(self, data):
         try:
-            xorKey = 'P';  
+            xorKey = 'N';  
             for i in range(len(data)):
                 try:
                     data = data[:i] + chr(ord(data[i]) ^ ord(xorKey)) +data[i + 1:]
@@ -498,7 +498,7 @@ if __name__ == '__main__':
     except Exception as e:
         print(e)
         sys.exit(1)
-    except (KeyboardInterrupt):
+    except (KeyboardInterrupt,SystemExit):
         p.deregister()
         p.elect_leader()
         print ("Peer is switching off..")
