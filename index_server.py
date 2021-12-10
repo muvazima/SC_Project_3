@@ -145,91 +145,96 @@ class IndexServerOperations(threading.Thread):
 
     #function to start index xerver thread
     def run(self):
-        try:
+        #try:
 
-            l_thread = threading.Thread(target=self.listen_server)
-            l_thread.setDaemon(True)
-            l_thread.start()
-            
-            while True:
+        l_thread = threading.Thread(target=self.listen_server)
+        l_thread.setDaemon(True)
+        l_thread.start()
         
-                while not self.listen_queue.empty():
-                    with futures.ThreadPoolExecutor(max_workers=8) as executor:
-                        connection, address = self.listen_queue.get()
-                        secured_data_received = json.loads(connection.recv(1024).decode('utf-8'))
-                        data_rcv=self.secure_dict(secured_data_received)
-                        print ("Connection recieved from %s on port %s, asking " \
-                                "for: %s" % (address[0], address[1], data_rcv['command']))
+        while True:
+    
+            while not self.listen_queue.empty():
+                with futures.ThreadPoolExecutor(max_workers=8) as executor:
+                    connection, address = self.listen_queue.get()
+                    secured_data_received = json.loads(connection.recv(1024).decode('utf-8'))
+                    data_rcv=self.secure_dict(secured_data_received)
+                    if('command' not in data_rcv.keys()):
+                        print('Peer %s:%s trying to connect does not have the right security key' %(address[0], address[1]))
+                        connection.send(json.dumps([address[0], False]).encode('utf-8'))
+                        continue
 
-                        if data_rcv['command'] == 'register':
-                            f = executor.submit(self.register_peer, address,data_rcv['data'],data_rcv['peer_port'])
-                            s = f.result(timeout= None)
-                            if s:
-                                print ("Peer ID: %s:%s registered" % (address[0], data_rcv['peer_port']))
-                                connection.send(json.dumps([address[0], s]).encode('utf-8'))
-                            else:
-                                print ("Peer ID: %s:%s did not register" % (address[0], data_rcv['peer_port']))
-                                connection.send(json.dumps([address[0], s]).encode('utf-8'))
+                    print ("Connection recieved from %s on port %s, asking " \
+                            "for: %s" % (address[0], address[1], data_rcv['command']))
+                    
+                    if data_rcv['command'] == 'register':
+                        f = executor.submit(self.register_peer, address,data_rcv['data'],data_rcv['peer_port'])
+                        s = f.result(timeout= None)
+                        if s:
+                            print ("Peer ID: %s:%s registered" % (address[0], data_rcv['peer_port']))
+                            connection.send(json.dumps([address[0], s]).encode('utf-8'))
+                        else:
+                            print ("Peer ID: %s:%s did not register" % (address[0], data_rcv['peer_port']))
+                            connection.send(json.dumps([address[0], s]).encode('utf-8'))
 
-                        elif data_rcv['command'] == 'update':
-                            f = executor.submit(self.update, data_rcv)
-                            s = f.result(timeout= None)
-                            if s:
-                                print ("Data of Peer ID: %s updated" % (data_rcv['peer_id']))
-                                connection.send(json.dumps(s).encode('utf-8'))
-                            else:
-                                print ("Data of Peer ID: %s did not update" % (data_rcv['peer_id']))
-                                connection.send(json.dumps(s).encode('utf-8'))
-
-                        elif data_rcv['command'] == 'list':
-                            f = executor.submit(self.list_peer_nodes)
-                            nodes_list = f.result(timeout= None)
-                            print ("Node list generated, %s" % nodes_list)
-                            connection.send(json.dumps(list(nodes_list)).encode('utf-8'))
-                        
-                        elif data_rcv['command']=='leader':
-                            f = executor.submit(self.get_leader)
-                            leader = f.result(timeout= None)
-                            print ("Leader node: , %s" % leader)
-                            connection.send(json.dumps(leader).encode('utf-8'))
-                        
-                        elif data_rcv['command']=='update_leader':
-                            f = executor.submit(self.update_leader,data_rcv['peer_id'])
-                            s = f.result(timeout= None)
-                            print ("Updated Leader node: , %s" % data_rcv['peer_id'])
+                    elif data_rcv['command'] == 'update':
+                        f = executor.submit(self.update, data_rcv)
+                        s = f.result(timeout= None)
+                        if s:
+                            print ("Data of Peer ID: %s updated" % (data_rcv['peer_id']))
+                            connection.send(json.dumps(s).encode('utf-8'))
+                        else:
+                            print ("Data of Peer ID: %s did not update" % (data_rcv['peer_id']))
                             connection.send(json.dumps(s).encode('utf-8'))
 
-                        elif data_rcv['command'] == 'connect_update':
-                            f = executor.submit(self.connect,data_rcv['peer_id'])
-                            s = fut.result(timeout= None)
-                            if s:
-                                print ("Update of leader nodes connected: %s successful" % (data_rcv['peer_id']))
-                                connection.send(json.dumps(s).encode('utf-8'))
-                            else:
-                                print ("Update of leader nodes connected: %s unsuccessful" % (data_rcv['peer_id']))
-                                connection.send(json.dumps(s).encode('utf-8'))
+                    elif data_rcv['command'] == 'list':
+                        f = executor.submit(self.list_peer_nodes)
+                        nodes_list = f.result(timeout= None)
+                        print ("Node list generated, %s" % nodes_list)
+                        connection.send(json.dumps(list(nodes_list)).encode('utf-8'))
+                    
+                    elif data_rcv['command']=='leader':
+                        f = executor.submit(self.get_leader)
+                        leader = f.result(timeout= None)
+                        print ("Leader node: , %s" % leader)
+                        connection.send(json.dumps(leader).encode('utf-8'))
+                    
+                    elif data_rcv['command']=='update_leader':
+                        f = executor.submit(self.update_leader,data_rcv['peer_id'])
+                        s = f.result(timeout= None)
+                        print ("Updated Leader node: , %s" % data_rcv['peer_id'])
+                        connection.send(json.dumps(s).encode('utf-8'))
 
-                        elif data_rcv['command'] == 'deregister':
-                            f = executor.submit(self.deregister_peer, data_rcv)
-                            s = f.result(timeout= None)
-                            if s:
-                                print ("Peer ID: %s deregistered" % (data_rcv['peer_id']))
-                                print(data_rcv['message'])
-                                connection.send(json.dumps(s).encode('utf-8'))
-                            else:
-                                print ("Peer ID: %s did not deregister" % (data_rcv['peer_id']))
-                                connection.send(json.dumps(s).encode('utf-8'))
+                    elif data_rcv['command'] == 'connect_update':
+                        f = executor.submit(self.connect,data_rcv['peer_id'])
+                        s = fut.result(timeout= None)
+                        if s:
+                            print ("Update of leader nodes connected: %s successful" % (data_rcv['peer_id']))
+                            connection.send(json.dumps(s).encode('utf-8'))
+                        else:
+                            print ("Update of leader nodes connected: %s unsuccessful" % (data_rcv['peer_id']))
+                            connection.send(json.dumps(s).encode('utf-8'))
 
+                    elif data_rcv['command'] == 'deregister':
+                        f = executor.submit(self.deregister_peer, data_rcv)
+                        s = f.result(timeout= None)
+                        if s:
+                            print ("Peer ID: %s deregistered" % (data_rcv['peer_id']))
+                            print(data_rcv['message'])
+                            connection.send(json.dumps(s).encode('utf-8'))
+                        else:
+                            print ("Peer ID: %s did not deregister" % (data_rcv['peer_id']))
+                            connection.send(json.dumps(s).encode('utf-8'))
+
+                    
+                    print ("Peer ports : %s" % self.hash_table_ports_peers)
+                    print ("Peer sensor data : %s" % self.hash_table_peer_data)
+                    print ("Peer Leader:  %s" % self.leader)
+                    print ("Leader nodes connected: %s" % self.leader_nodes_connected)
+                    connection.close()
                         
-                        print ("Peer ports : %s" % self.hash_table_ports_peers)
-                        print ("Peer sensor data : %s" % self.hash_table_peer_data)
-                        print ("Peer Leader:  %s" % self.leader)
-                        print ("Leader nodes connected: %s" % self.leader_nodes_connected)
-                        connection.close()
-                        
-        except Exception as e:
-            print ("Server Run error, %s " % e)
-            sys.exit(1)
+        # except Exception as e:
+        #     print ("Server Run error, %s " % e)
+        #     sys.exit(1)
         
 if __name__ == '__main__':
     
