@@ -1,68 +1,69 @@
 #!/usr/bin/python
-import argparse
-from multiprocessing import Queue
-import time
-import sys
 import socket
+import argparse
 import json
-import threading
 from concurrent import futures
+import time
+import threading
+from multiprocessing import Queue
+import sys
 
 #get arguments from command line
-def get_args():
-    parser = argparse.ArgumentParser(
+def get_arguments():
+    p = argparse.ArgumentParser(
         description='Arguments for index server')
-    parser.add_argument('-p', '--port',type=int,required=True,action='store', help='Index Server Port Number')
-    args = parser.parse_args()
-    return args
+    p.add_argument('-p', '--port',action='store',required=True,type=int, help='Index Server Port Number')
+    arguments = p.parse_args()
+    return arguments
 
 class IndexServerOperations(threading.Thread):
     #initialize serverOperations object
-    def __init__(self, threadid, name, server_port):
+    def __init__(self, idthread, th_name, s_port):
         
         threading.Thread.__init__(self)
-        self.threadID = threadid
-        self.name = name
-        self.server_port = server_port
+        self.listen_queue = Queue()
         self.hash_table_ports_peers = {}
+        self.name = th_name
+        self.threadID = idthread
+        self.s_port = s_port
         self.hash_table_peer_data = {}
         self.leader=''
         self.leader_nodes_connected=[]
-        self.listener_queue = Queue()
+        
 
     #use index server port  to listen to incoming connections to index server
-    def server_listener(self):
+    def listen_server(self):
     
         try:
-            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_host = socket.gethostbyname(socket.gethostname())
-            server_socket.bind((server_host, self.server_port))
-            server_socket.listen(10)
+            s_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s_host = socket.gethostbyname(socket.gethostname())
+            s_socket.bind((s_host, self.s_port))
+            s_socket.listen(10)
             while True:
-                conn, addr = server_socket.accept()
-                self.listener_queue.put((conn,addr))
+                connection, address = s_socket.accept()
+                self.listen_queue.put((connection,address))
         except Exception as e:
-            print ("Server Listener on port Failed: %s" % e)
+            print ("Listen on server error: %s" % e)
             sys.exit(1)
 
     #function invoked by peer trying to register to index server
-    def registry(self, addr, data, peer_port):
+    def register_peer(self, address, rcv_data, p_port):
     
         try:
-            self.hash_table_ports_peers[peer_port] = addr[0]
-            peer_id = addr[0] + ":" + str(peer_port)
+            self.hash_table_ports_peers[p_port] = address[0]
+            p_id = address[0] + ":" + str(p_port)
             #add peer to hash table
-            self.hash_table_peer_data[peer_id] = data
+            self.hash_table_peer_data[p_id] = rcv_data
             return True
         except Exception as e:
-            print ("Peer registration failure: %s" % e)
+            print ("Registeration of Peer Failed: %s" % e)
             return False
 
     #function invoked by peer trying to update sensor data to index server
-    def update(self, peer_update):
+    def update(self, p_update):
         try:
-            self.hash_table_peer_data[peer_update['peer_id']]=peer_update['data']
+            self.hash_table_peer_data[p_update['peer_id']]=p_update['data']
             return True
         except Exception as e:
             print ("Peer Sensor Data Update failure: %s" % e)
@@ -100,15 +101,15 @@ class IndexServerOperations(threading.Thread):
         return self.leader
     
     #function invoked by peer to deregister itself from index server
-    def deregistry(self, peer_data):
+    def deregister_peer(self, p_data):
         try:
-            if peer_data['hosting_port'] in self.hash_table_ports_peers:
-                self.hash_table_ports_peers.pop(peer_data['hosting_port'], None)
-            if peer_data['peer_id'] in self.hash_table_peer_data:
-                self.hash_table_peer_data.pop(peer_data['peer_id'], None)
+            if p_data['hosting_port'] in self.hash_table_ports_peers:
+                self.hash_table_ports_peers.pop(p_data['hosting_port'], None)
+            if p_data['peer_id'] in self.hash_table_peer_data:
+                self.hash_table_peer_data.pop(p_data['peer_id'], None)
             return True
         except Exception as e:
-            print ("Peer deregistration failure: %s" % e)
+            print ("Deregisteration of Peer failed: %s" % e)
             return False
 
     #function to encrypt and decrypt string data
@@ -146,98 +147,85 @@ class IndexServerOperations(threading.Thread):
     def run(self):
         try:
 
-            listener_thread = threading.Thread(target=self.server_listener)
-            listener_thread.setDaemon(True)
-            listener_thread.start()
+            l_thread = threading.Thread(target=self.listen_server)
+            l_thread.setDaemon(True)
+            l_thread.start()
             
             while True:
         
-                while not self.listener_queue.empty():
+                while not self.listen_queue.empty():
                     with futures.ThreadPoolExecutor(max_workers=8) as executor:
-                        conn, addr = self.listener_queue.get()
-                        secured_data_received = json.loads(conn.recv(1024).decode('utf-8'))
-                        data_received=self.secure_dict(secured_data_received)
-                        print ("Got connection from %s on port %s, requesting " \
-                                "for: %s" % (addr[0], addr[1], data_received['command']))
+                        connection, address = self.listen_queue.get()
+                        secured_data_received = json.loads(connection.recv(1024).decode('utf-8'))
+                        data_rcv=self.secure_dict(secured_data_received)
+                        print ("Connection recieved from %s on port %s, asking " \
+                                "for: %s" % (address[0], address[1], data_rcv['command']))
 
-                        if data_received['command'] == 'register':
-                            fut = executor.submit(self.registry, addr,
-                                                    data_received['data'], 
-                                                    data_received['peer_port'])
-                            success = fut.result(timeout= None)
-                            if success:
-                                print ("registration successfull, Peer ID: %s:%s" \
-                                        % (addr[0], data_received['peer_port']))
-                                conn.send(json.dumps([addr[0], success]).encode('utf-8'))
+                        if data_rcv['command'] == 'register':
+                            f = executor.submit(self.register_peer, address,data_rcv['data'],data_rcv['peer_port'])
+                            s = f.result(timeout= None)
+                            if s:
+                                print ("Peer ID: %s:%s registered" % (address[0], data_rcv['peer_port']))
+                                connection.send(json.dumps([address[0], s]).encode('utf-8'))
                             else:
-                                print ("registration unsuccessfull, Peer ID: %s:%s" \
-                                        % (addr[0], data_received['peer_port']))
-                                conn.send(json.dumps([addr[0], success]).encode('utf-8'))
+                                print ("Peer ID: %s:%s did not register" % (address[0], data_rcv['peer_port']))
+                                connection.send(json.dumps([address[0], s]).encode('utf-8'))
 
-                        elif data_received['command'] == 'update':
-                            fut = executor.submit(self.update, data_received)
-                            success = fut.result(timeout= None)
-                            if success:
-                                print ("Update of Peer ID: %s successful" \
-                                        % (data_received['peer_id']))
-                                conn.send(json.dumps(success).encode('utf-8'))
+                        elif data_rcv['command'] == 'update':
+                            f = executor.submit(self.update, data_rcv)
+                            s = f.result(timeout= None)
+                            if s:
+                                print ("Data of Peer ID: %s updated" % (data_rcv['peer_id']))
+                                connection.send(json.dumps(s).encode('utf-8'))
                             else:
-                                print ("Update of Peer ID: %s unsuccessful" \
-                                        % (data_received['peer_id']))
-                                conn.send(json.dumps(success).encode('utf-8'))
+                                print ("Data of Peer ID: %s did not update" % (data_rcv['peer_id']))
+                                connection.send(json.dumps(s).encode('utf-8'))
 
-                        elif data_received['command'] == 'list':
-                            fut = executor.submit(self.list_peer_nodes)
-                            #print(self.list_peer_nodes())
-                            nodes_list = fut.result(timeout= None)
+                        elif data_rcv['command'] == 'list':
+                            f = executor.submit(self.list_peer_nodes)
+                            nodes_list = f.result(timeout= None)
                             print ("Node list generated, %s" % nodes_list)
-                            conn.send(json.dumps(list(nodes_list)).encode('utf-8'))
+                            connection.send(json.dumps(list(nodes_list)).encode('utf-8'))
                         
-                        elif data_received['command']=='leader':
-                            fut = executor.submit(self.get_leader)
-                            #print(self.list_peer_nodes())
-                            leader = fut.result(timeout= None)
+                        elif data_rcv['command']=='leader':
+                            f = executor.submit(self.get_leader)
+                            leader = f.result(timeout= None)
                             print ("Leader node: , %s" % leader)
-                            conn.send(json.dumps(leader).encode('utf-8'))
+                            connection.send(json.dumps(leader).encode('utf-8'))
                         
-                        elif data_received['command']=='update_leader':
-                            fut = executor.submit(self.update_leader,data_received['peer_id'])
-                            #print(self.list_peer_nodes())
-                            success = fut.result(timeout= None)
-                            print ("Updated Leader node: , %s" % data_received['peer_id'])
-                            conn.send(json.dumps(success).encode('utf-8'))
+                        elif data_rcv['command']=='update_leader':
+                            f = executor.submit(self.update_leader,data_rcv['peer_id'])
+                            s = f.result(timeout= None)
+                            print ("Updated Leader node: , %s" % data_rcv['peer_id'])
+                            connection.send(json.dumps(s).encode('utf-8'))
 
-                        elif data_received['command'] == 'connect_update':
-                            fut = executor.submit(self.connect,data_received['peer_id'])
-                            success = fut.result(timeout= None)
-                            if success:
-                                print ("Update of leader nodes connected: %s successful" \
-                                        % (data_received['peer_id']))
-                                conn.send(json.dumps(success).encode('utf-8'))
+                        elif data_rcv['command'] == 'connect_update':
+                            f = executor.submit(self.connect,data_rcv['peer_id'])
+                            s = fut.result(timeout= None)
+                            if s:
+                                print ("Update of leader nodes connected: %s successful" % (data_rcv['peer_id']))
+                                connection.send(json.dumps(s).encode('utf-8'))
                             else:
-                                print ("Update of leader nodes connected: %s unsuccessful" \
-                                        % (data_received['peer_id']))
-                                conn.send(json.dumps(success).encode('utf-8'))
+                                print ("Update of leader nodes connected: %s unsuccessful" % (data_rcv['peer_id']))
+                                connection.send(json.dumps(s).encode('utf-8'))
 
-                        elif data_received['command'] == 'deregister':
-                            fut = executor.submit(self.deregistry, data_received)
-                            success = fut.result(timeout= None)
-                            if success:
-                                print ("deregistration of Peer ID: %s successful" \
-                                        % (data_received['peer_id']))
-                                print(data_received['message'])
-                                conn.send(json.dumps(success).encode('utf-8'))
+                        elif data_rcv['command'] == 'deregister':
+                            f = executor.submit(self.deregister_peer, data_rcv)
+                            s = f.result(timeout= None)
+                            if s:
+                                print ("Peer ID: %s deregistered" % (data_rcv['peer_id']))
+                                print(data_rcv['message'])
+                                connection.send(json.dumps(s).encode('utf-8'))
                             else:
-                                print ("deregistration of Peer ID: %s unsuccessful" \
-                                        % (data_received['peer_id']))
-                                conn.send(json.dumps(success).encode('utf-8'))
+                                print ("Peer ID: %s did not deregister" % (data_rcv['peer_id']))
+                                connection.send(json.dumps(s).encode('utf-8'))
 
                         
                         print ("Peer ports : %s" % self.hash_table_ports_peers)
                         print ("Peer sensor data : %s" % self.hash_table_peer_data)
                         print ("Peer Leader:  %s" % self.leader)
                         print ("Leader nodes connected: %s" % self.leader_nodes_connected)
-                        conn.close()
+                        connection.close()
                         
         except Exception as e:
             print ("Server Run error, %s " % e)
@@ -246,15 +234,15 @@ class IndexServerOperations(threading.Thread):
 if __name__ == '__main__':
     
     try:
-        args = get_args()
-        print ("Index Server.....")
+        args = get_arguments()
+        print ("Starting Index Server")
         oper_thread = IndexServerOperations(1, "IndexServerOperations",args.port) 
         oper_thread.start()
         
     except Exception as e:
         print (e)
         sys.exit(1)
-    except (KeyboardInterrupt, SystemExit):
-        print ("Index Server Switching off.....")
+    except (SystemExit,KeyboardInterrupt):
+        print ("Switched off Index Server")
         time.sleep(1)
         sys.exit(1)

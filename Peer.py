@@ -1,34 +1,34 @@
 #!/usr/bin/python
+import sys
+import argparse
+import json
 import socket
 import time
 import threading
-import json
-import argparse
-import sys
-sys.path.append('..')
 from multiprocessing import Queue
 from concurrent import futures
 import sensor
+sys.path.append('..')
 
 #To obtain command line arguments.
-def get_args():
-    parser = argparse.ArgumentParser(
+def get_arguments():
+    p = argparse.ArgumentParser(
         description='Arguments for connecting to index server')
-    parser.add_argument('-s', '--server',type=int,required=True,action='store',help='Index Server Port Number')
-    parser.add_argument('-p','--peer_port', type=str,required=True,action='store',help='Peer Port Number')
-    parser.add_argument('-n','--network', type=str,required=False,action='store',help='IP address of network to connect to')
-    args = parser.parse_args()
+    p.add_argument('-s', '--server',type=int,required=True,action='store',help='Index Server Port Number')
+    p.add_argument('-p','--peer_port', type=str,required=True,action='store',help='Peer Port Number')
+    p.add_argument('-n','--network', type=str,required=False,action='store',help='IP address of network to connect to')
+    args = p.parse_args()
     return args
 
 class PeerOperations(threading.Thread):
 
     #Initializing a thread for each peer object
-    def __init__(self, threadid, name, p):
+    def __init__(self, idthread, name, peer):
         threading.Thread.__init__(self)
+        self.threadID = idthread
         self.name = name
-        self.threadID = threadid
-        self.peer_server_listener_queue = Queue()
-        self.peer = p
+        self.p_s_listen_queue = Queue()
+        self.peer = peer
     
     #Function for encrypting or decrypting string data
     def secure(self, str_data):
@@ -54,70 +54,70 @@ class PeerOperations(threading.Thread):
         return secured_dict
     
     #Function to listen for incoming connections to the peer
-    def peer_server_listener(self):
+    def p_s_listen(self):
         
-        peer_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        peer_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        peer_server_host = socket.gethostbyname(socket.gethostname())
-        peer_server_port = self.peer.hosting_port
-        peer_server_socket.bind((peer_server_host, peer_server_port))
-        peer_server_socket.listen(10)
+        p_s_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        p_s_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        p_s_host = socket.gethostbyname(socket.gethostname())
+        p_s_port = self.peer.hosting_port
+        p_s_socket.bind((p_s_host, p_s_port))
+        p_s_socket.listen(10)
         while True:
-            conn, addr = peer_server_socket.accept()
+            connection, address = p_s_socket.accept()
             #The incoming connection is put in a queue to process the connections one by one
-            self.peer_server_listener_queue.put((conn,addr))
+            self.p_s_listen_queue.put((connection,address))
 
     #Function to process requests from incoming connections to peer
-    def peer_server_host(self):
+    def p_s_host(self):
        
         try:
             while True:
-                while not self.peer_server_listener_queue.empty():
+                while not self.p_s_listen_queue.empty():
                     with futures.ThreadPoolExecutor(max_workers=8) as executor:
                         #Process the connections present in listener queue
-                        conn, addr = self.peer_server_listener_queue.get()
-                        secured_data_received = json.loads(conn.recv(1024).decode('utf-8'))
+                        connection, address = self.p_s_listen_queue.get()
+                        secured_data_received = json.loads(connection.recv(1024).decode('utf-8'))
                         #Decrypt the incomming request message
-                        data_received=self.secure_dict(secured_data_received)
+                        data_rcv=self.secure_dict(secured_data_received)
 
                         #Display the message recieved
-                        if data_received['command']== 'message' or data_received['command']=='connect':
-                            print("Message Recieved from: "+data_received['peer_id'])
-                            print(data_received['message'])
-                            conn.send(json.dumps(True).encode('utf-8'))
+                        if data_rcv['command']== 'message' or data_rcv['command']=='connect':
+                            print("Message Recieved from: "+data_rcv['peer_id'])
+                            print(data_rcv['message'])
+                            connection.send(json.dumps(True).encode('utf-8'))
                         else:
-                            conn.send(json.dumps(False).encode('utf-8'))
+                            connection.send(json.dumps(False).encode('utf-8'))
 
         except Exception as e:
-            print ("Peer Server Connection Processing Error, %s" % e)
+            print ("Server Peer Connection Processing Error, %s" % e)
 
     #Function that creates a thread for listening to connections and a thread for processing the connections
-    def peer_server(self):
+    def p_s(self):
         
         try:
-            listener_thread = threading.Thread(target=self.peer_server_listener)
-            listener_thread.setDaemon(True)
+            l_thread = threading.Thread(target=self.p_s_listen)
+            l_thread.setDaemon(True)
 
-            operations_thread = threading.Thread(target=self.peer_server_host)
-            operations_thread.setDaemon(True)
+            op_thread = threading.Thread(target=self.p_s_host)
+            op_thread.setDaemon(True)
 
-            listener_thread.start()
-            operations_thread.start()
+            l_thread.start()
+            op_thread.start()
 
-            threads = []
-            threads.append(listener_thread)
-            threads.append(operations_thread)
+            list_threads = []
+            list_threads.append(l_thread)
+            list_threads.append(op_thread)
 
-            for t in threads:
-                t.join()
+            for th in list_threads:
+                th.join()
         except Exception as e:
             print ("Peer Thread Connection Error, %s" % e)
             sys.exit(1)
     
-    #FUnction to run the thread creation function if PeerServer name is given to PeerOperations object
+    #FUnction to run the thread creation function if PeerToServer name is given to PeerOperations object
     def run(self):
-        if self.name == "PeerServer":
-            self.peer_server()
+        if self.name == "PeerToServer":
+            self.p_s()
 
 class Peer():
 
@@ -265,7 +265,7 @@ class Peer():
                     #send a message to all peers that car is switched off
                     self.broadcast_peers(message)
                     #deregister the car from the index server
-                    self.deregister_peer(message)
+                    self.deregister(message)
                     #start leader election again
                     self.elect_leader()
                     break
@@ -303,43 +303,35 @@ class Peer():
 
 
     #FUnction to register peer with index server
-    def register_peer(self):
+    def register(self):
         try:
-            data=self.generate_sensor_data()
-            print ("Registering Peer with Index Server...")
+            self.data=self.generate_sensor_data()
+            print ("Peer is registering with Index Server...")
 
-            peer_to_server_socket = \
+            p_s_socket = \
                     socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_to_server_socket.setsockopt(
-                    socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_to_server_socket.connect(
-                    (self.peer_hostname, self.server_port))
+            p_s_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            p_s_socket.connect((self.peer_hostname, self.server_port))
 
-            cmd_issue = {
-                    'command' : 'register',
-                    'peer_port' : self.peer_port,
-                    'data' : self.data,
-                }
+            command = {'command' : 'register','peer_port' : self.peer_port,'data' : self.data,}
             #encrypt the message to be sent
-            secured_cmd_issue=self.secure_dict(cmd_issue)
-            peer_to_server_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
-            rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-            peer_to_server_socket.close()
-            peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            secured_cmd_issue=self.secure_dict(command)
+            p_s_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
+            data_rcv = json.loads(p_s_socket.recv(1024).decode('utf-8'))
+            p_s_socket.close()
+            p_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            p_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-            peer_host = socket.gethostbyname(socket.gethostname())
-            peer_socket.bind((peer_host, int(self.peer_port)))
-            if rcv_data[1]:
+            p_host = socket.gethostbyname(socket.gethostname())
+            p_socket.bind((p_host, int(self.peer_port)))
+            if data_rcv[1]:
                 self.hosting_port = int(self.peer_port)
-                self.peer_id = rcv_data[0] + ":" + self.peer_port
-                print ("Registration successful, Peer ID: %s:%s" \
-                                % (rcv_data[0], self.peer_port))
+                self.peer_id = data_rcv[0] + ":" + self.peer_port
+                print ("Peer ID: %s:%s registered" % (data_rcv[0], self.peer_port))
             else:
-                print ("Registration unsuccessful, Peer ID: %s:%s" \
-                                % (rcv_data[0], self.peer_port))
+                print ("Peer ID: %s:%s did not register" % (data_rcv[0], self.peer_port))
         except Exception as e:
-            print ("Registering Peer Error, %s" % e)
+            print ("Peer register error, %s" % e)
             sys.exit(1)
 
     #Function to elect leader
@@ -459,43 +451,42 @@ class Peer():
             print ("dict Encrypt/Decrypt error, %s" % e)
 
     #function to deregister peer from the index server
-    def deregister_peer(self,message=''):
+    def deregister(self,message=''):
         try:
-            print ("Deregistering Peer with Index Server...")
-            peer_to_server_socket = \
+            print ("Peer deregistering with Index Server..")
+            p_s_socket = \
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_to_server_socket.setsockopt(
+            p_s_socket.setsockopt(
                 socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            peer_to_server_socket.connect(
+            p_s_socket.connect(
                 (self.peer_hostname, self.server_port))
 
             cmd_issue = {
                 'command' : 'deregister',
-                'peer_id' : self.peer_id,
                 'message':message,
+                'peer_id' : self.peer_id,
                 'hosting_port' : self.hosting_port
             }
             secured_cmd_issue=self.secure_dict(cmd_issue)
-            peer_to_server_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
-            rcv_data = json.loads(peer_to_server_socket.recv(1024).decode('utf-8'))
-            #rcv_data=rcv_data.decode('utf-8')
-            peer_to_server_socket.close()
-            if rcv_data:
-                print ("Deregistration of Peer: %s on server successful" \
+            p_s_socket.sendall(json.dumps(secured_cmd_issue).encode('utf-8'))
+            data_rcv = json.loads(p_s_socket.recv(1024).decode('utf-8'))
+            p_s_socket.close()
+            if data_rcv:
+                print ("Peer: %s deregistered with index server" \
                       % (self.peer_id))
             else:
-                print ("Deregistration of Peer: %s on server unsuccessful" \
+                print ("Peer: %s did not deregister with index server" \
                       % (self.peer_id))
         except Exception as e:
-            print ("Deregistering Peer Error, %s" % e)
+            print ("Peer Deregister Error, %s" % e)
 
 if __name__ == '__main__':
     try:
-        args = get_args()
+        args = get_arguments()
         print ("Peer is Starting...")
         p=Peer(args.server,args.peer_port,args.network) 
-        p.register_peer()
-        server_thread = PeerOperations(1, "PeerServer", p)
+        p.register()
+        server_thread = PeerOperations(1, "PeerToServer", p)
         server_thread.setDaemon(True)
         server_thread.start()
         p.generate_data_continuously()
@@ -504,10 +495,8 @@ if __name__ == '__main__':
         print(e)
         sys.exit(1)
     except (KeyboardInterrupt, SystemExit):
-        p.deregister_peer()
+        p.deregister()
         p.elect_leader()
-        print ("Peer Shutting down...")
+        print ("Peer is switching off..")
         time.sleep(1)
         sys.exit(1)
-
-__author__ = 'muvazima'
