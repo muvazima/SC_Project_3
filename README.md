@@ -34,3 +34,9 @@ $ sh shell_n1.sh
 
 For network 2 on pi 2
 $ sh shell_n2.sh
+
+## Contributions
+System architecture and message broadcasting - Muvazima Mansoor <br />
+Leader Election - Archit Jhingan <br />
+Sensors - Yigao Xie <br />
+Actuators - Vishnu Priya <br />
